@@ -11,7 +11,7 @@
  
  Example updates:
  
- 	Original file: ANT\_MAN\_AND\_THE\_WASPTitle21.mp4
+ 	Original file: ANT_MAN_AND_THE_WASPTitle21.mp4
  	
  	New file: Ant-Man and the Wasp (2018) {imdb-tt5095030}\Ant-Man and the Wasp (2018) {imdb-tt5095030}.mp4
 
