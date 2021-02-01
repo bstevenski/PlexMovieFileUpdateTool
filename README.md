@@ -1,7 +1,7 @@
 # Plex Movie File Renaming Tool
  Renames movie files to follow Plex naming convention and IMDb ID
  Files will be renamed to follow this format:
- <movie title> (<movie year>) {imdb-<IMDB ID>}\<movie title> (<movie year>) {imdb-<IMDB ID>}
+ movie title (movie year) {imdb-IMDB ID}\movie title (movie year) {imdb-IMDB ID}
  
  
  
