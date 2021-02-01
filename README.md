@@ -19,6 +19,11 @@
 
  Steps for running:
  
- 1. Add plex\_movie\_renaming\_tool.py to a folder with the file(s) you want to rename. NOTE: I would NOT have any other files in this folder, the script runs any file that hasn't already been converted through the processor and you might end up renaming files you don't want renamed
+ 1. Add plex\_movie\_renaming\_tool.py to a folder with the file(s) you want to rename.
+ 2. Run the file. 
  
- 2. Run the file. NOTE: If you run the file via command prompt, a log will be printed showing what files were processed and what files had issues.
+ 
+ 
+ NOTES:
+ *  I would NOT have any other files in this folder, the script runs any file that hasn't already been converted through the processor and you might end up renaming files you don't want renamed.
+ *  If you run the file via command prompt, a log will be printed showing what files were processed and what files had issues.
