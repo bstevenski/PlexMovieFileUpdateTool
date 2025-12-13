@@ -1,5 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# PyCharm
 *.iml
 .idea/
+
+# Virtual environments
+.venv/
 venv/
+ENV/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
 /.junie/
 /.env
+/output.log

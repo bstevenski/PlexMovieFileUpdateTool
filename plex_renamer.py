@@ -32,6 +32,58 @@ def sanitize_filename(name: str):
     return name.strip()
 
 
+def search_tvmaze(title: str):
+    """
+    Search TVMaze for a TV series.
+    Returns series data including TVMaze ID, name, premiered year, and ended date.
+    """
+    url = "https://api.tvmaze.com/search/shows"
+    params = {"q": title}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code != 200:
+            return None
+        results = resp.json()
+        if not results:
+            return None
+        # Return the first (best) match
+        show = results[0].get("show")
+        if show:
+            return {
+                "tvmaze_id": show.get("id"),
+                "name": show.get("name"),
+                "premiered": show.get("premiered"),  # YYYY-MM-DD format
+                "ended": show.get("ended"),  # YYYY-MM-DD format or None if ongoing
+                "externals": show.get("externals", {})
+            }
+    except Exception as e:
+        if DEBUG:
+            print(f"[TVMaze] Error searching for '{title}': {e}")
+    return None
+
+
+def get_tvmaze_episode(tvmaze_id: int, season: int, episode: int):
+    """
+    Get episode details from TVMaze by show ID, season, and episode number.
+    """
+    url = f"https://api.tvmaze.com/shows/{tvmaze_id}/episodebynumber"
+    params = {"season": season, "number": episode}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return {
+            "name": data.get("name"),
+            "season": data.get("season"),
+            "number": data.get("number")
+        }
+    except Exception as e:
+        if DEBUG:
+            print(f"[TVMaze] Error getting episode s{season:02d}e{episode:02d}: {e}")
+    return None
+
+
 def search_omdb(title: str, type_: str, season: int = None, episode: int = None):
     """
     Search OMDb for a movie or TV episode.
@@ -52,13 +104,18 @@ def search_omdb(title: str, type_: str, season: int = None, episode: int = None)
             "Episode": episode
         }
 
-    resp = requests.get(url, params=params)
-    if resp.status_code != 200:
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get("Response") == "False":
+            return None
+        return data
+    except Exception as e:
+        if DEBUG:
+            print(f"[OMDb] Error: {e}")
         return None
-    data = resp.json()
-    if data.get("Response") == "False":
-        return None
-    return data
 
 
 def parse_tv_filename(filename: str):
@@ -126,34 +183,61 @@ def _guess_title_and_year_from_stem(stem: str):
     return title_part.strip(), year
 
 
-def clean_search_title(raw_title: str):
+def _extract_episode_title_from_filename(stem: str) -> str | None:
     """
-    Remove empty segments or extra hyphens from the filename for OMDb search
+    Attempt to extract a human episode title from a filename stem.
+    Examples:
+      "Intervention - s08e11 - Marquel" -> "Marquel"
+      "Ghosts - S01E01 - Pilot" -> "Pilot"
+    Returns None if no obvious title segment exists.
     """
-    parts = [p.strip() for p in raw_title.replace(".", " ").split("-") if p.strip()]
-    return " - ".join(parts)
+    s = stem.replace(".", " ").replace("_", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+
+    # Prefer the segment after the sXXeYY token
+    m = re.search(r"[Ss]\d{1,2}[Ee]\d{1,2}\s*-\s*(.+)$", s)
+    if m:
+        candidate = m.group(1).strip(" -_")
+        if candidate:
+            return sanitize_filename(candidate)
+
+    # Fallback: last "-" segment, if it doesn't look like just tech garbage
+    parts = [p.strip() for p in s.split(" - ") if p.strip()]
+    if len(parts) >= 2:
+        candidate = parts[-1]
+        if not SEASON_EPISODE_REGEX.search(candidate):
+            return sanitize_filename(candidate)
+
+    return None
 
 
 def get_existing_imdb_id(file_path: Path):
     """
-    Check if the file or its parent folder already has an IMDb ID
+    Check if the file or any parent folder already has an IMDb ID.
+    This prevents re-processing items already organized like:
+      Show {imdb-tt...}/Season 01/Episode.ext
     """
+    # Check the filename first
     match = IMDB_ID_REGEX.search(file_path.name)
     if match:
-        return match.group(0)  # return the string, not the match object
-    match = IMDB_ID_REGEX.search(file_path.parent.name)
-    if match:
         return match.group(0)
+
+    # Then check all ancestor directory names (parent, grandparent, ...)
+    for parent in file_path.parents:
+        m = IMDB_ID_REGEX.search(parent.name)
+        if m:
+            return m.group(0)
+
     return None
 
 
 def rename_tv_file(file, season, episode, date_str: str | None = None, date_year: int | None = None):
     type_ = "series"
-    # Use only series title for OMDb search
+    # Use only series title for search
     search_title_series = file.stem
     # Strip season/episode and date parts from the search title
     search_title_series = re.split(SEASON_EPISODE_REGEX, search_title_series)[0]
-    search_title_series = search_title_series.split(" - ")[0]  # remove anything after first dash
+    search_title_series = search_title_series.split(" - ")[0]  # remove anything after the first dash
     search_title_series = re.sub(r"\(\d{4}\)", "", search_title_series)
     # remove matched date token text if present
     if date_str:
@@ -170,14 +254,55 @@ def rename_tv_file(file, season, episode, date_str: str | None = None, date_year
         print(f"[DEBUG] Processing: {file}, type: {type_}, season search title: {search_title_series}, "
               f"season: {season}, episode: {episode}")
 
-    # Get series data for IMDb ID and year
-    series_data = search_omdb(search_title_series, type_)
+    # Try TVMaze first (better episode data), fallback to OMDb
+    tvmaze_data = search_tvmaze(search_title_series)
+    series_imdb_id = None
+    series_year = None
+    series_title_clean = None
+    tvmaze_id = None
 
-    matched = True
-    if not series_data or not series_data.get("imdbID"):
-        matched = False
-        # Fallback: build names without IMDb and without authoritative year
-        base_title, series_year = _guess_title_and_year_from_stem(search_title_series)
+    if tvmaze_data:
+        tvmaze_id = tvmaze_data.get("tvmaze_id")
+        series_title_clean = sanitize_filename(tvmaze_data.get("name", search_title_series))
+        # Extract year from premiered date (YYYY-MM-DD)
+        premiered = tvmaze_data.get("premiered")
+        ended = tvmaze_data.get("ended")
+        if premiered and len(premiered) >= 4:
+            start_year = premiered[:4]
+            # If the show hasn't ended, use "YYYY-" format for ongoing shows
+            if ended is None:
+                series_year = f"{start_year}-"
+            elif len(ended) >= 4:
+                end_year = ended[:4]
+                if start_year == end_year:
+                    series_year = start_year
+                else:
+                    series_year = f"{start_year}-{end_year}"
+            else:
+                series_year = start_year
+        # Try to get IMDb ID from TVMaze externals
+        externals = tvmaze_data.get("externals", {})
+        imdb_id = externals.get("imdb")
+        if imdb_id:
+            series_imdb_id = imdb_id
+        if DEBUG:
+            print(f"[TVMaze] Found: {series_title_clean} ({series_year}), IMDb: {series_imdb_id}")
+
+    # Fallback to OMDb if TVMaze didn't find it
+    if not tvmaze_data:
+        if DEBUG:
+            print(f"[TVMaze] No match, trying OMDb...")
+        series_data = search_omdb(search_title_series, type_)
+        if series_data and series_data.get("imdbID"):
+            series_imdb_id = series_data["imdbID"]
+            series_year = series_data.get("Year", "Unknown")
+            series_title_clean = sanitize_filename(series_data.get("Title", search_title_series))
+
+    matched = bool(series_imdb_id)
+
+    if not matched:
+        # No match from either source - build names without IMDb
+        base_title, guessed_year = _guess_title_and_year_from_stem(search_title_series)
         # Determine if we can safely rename
         renamable = bool(base_title) and len(base_title.strip()) >= 2
         if not renamable:
@@ -185,8 +310,7 @@ def rename_tv_file(file, season, episode, date_str: str | None = None, date_year
         if date_str:
             # Date-based fallback
             folder = f"{base_title}"
-            # prefer series folder year from series_year if we guessed one, else from date year
-            folder_year = series_year or (str(date_year) if date_year else None)
+            folder_year = guessed_year or (str(date_year) if date_year else None)
             if folder_year:
                 folder = f"{base_title} ({folder_year})"
             new_folder = Path(folder) / f"Season {date_year or '01'}"
@@ -198,46 +322,56 @@ def rename_tv_file(file, season, episode, date_str: str | None = None, date_year
             token = f"s{season_num:02d}e{episode_num:02d}"
             episode_title = token
             folder = f"{base_title}"
-            if series_year:
-                folder = f"{base_title} ({series_year})"
+            if guessed_year:
+                folder = f"{base_title} ({guessed_year})"
             new_folder = Path(folder) / f"Season {season_num:02d}"
-            # Avoid duplicating the token in filename (e.g., '... - s01e01 - s01e01')
             if episode_title.strip().lower() == token.lower():
                 new_filename = f"{base_title} - {token}{file.suffix}"
             else:
                 new_filename = f"{base_title} - {token} - {episode_title}{file.suffix}"
         return new_folder / new_filename, matched, True
 
-    series_imdb_id = series_data["imdbID"]
-    series_year = series_data.get("Year", "Unknown")
-
-    # Now get episode data for the episode title
-    # Determine episode title, if available
+    # We have a match - now get an episode title
     season_num = season or 1
     episode_num = episode or 1
+    episode_title = None
+
     if date_str is None:
-        _ep = search_omdb(search_title_series, "episode", season=season, episode=episode)
-        if _ep and _ep.get("Title"):
-            episode_title = sanitize_filename(_ep["Title"])
-        else:
-            episode_title = f"s{season_num:02d}e{episode_num:02d}"
-        series_title_clean = sanitize_filename(search_title_series)
+        # Try TVMaze for episode title first
+        if tvmaze_id:
+            ep_data = get_tvmaze_episode(tvmaze_id, season_num, episode_num)
+            if ep_data and ep_data.get("name"):
+                episode_title = sanitize_filename(ep_data["name"])
+                if DEBUG:
+                    print(f"[TVMaze] Episode: {episode_title}")
+
+        # Fallback to OMDb for episode title
+        if not episode_title:
+            if DEBUG and tvmaze_id:
+                print(f"[TVMaze] No episode data, trying OMDb...")
+            _ep = search_omdb(search_title_series, "episode", season=season, episode=episode)
+            if _ep and _ep.get("Title"):
+                episode_title = sanitize_filename(_ep["Title"])
+
+        # Last resort: extract from filename or use token
+        if not episode_title:
+            episode_title = _extract_episode_title_from_filename(file.stem) or f"s{season_num:02d}e{episode_num:02d}"
+
         new_folder = Path(
             f"{series_title_clean} ({series_year}) {{imdb-{series_imdb_id}}}") / f"Season {season_num:02d}"
         token = f"s{season_num:02d}e{episode_num:02d}"
-        # Avoid duplicating the token in filename
+        # Avoid duplicating the token in the filename
         if (episode_title or '').strip().lower() == token.lower():
             new_filename = f"{series_title_clean} - {token}{file.suffix}"
         else:
             new_filename = f"{series_title_clean} - {token} - {episode_title}{file.suffix}"
     else:
         # Date-based episode: use date as the key; put in Season YYYY
-        series_title_clean = sanitize_filename(search_title_series)
         new_folder = Path(
             f"{series_title_clean} ({series_year}) {{imdb-{series_imdb_id}}}") / f"Season {date_year or '01'}"
-        # No reliable OMDb episode lookup by date here; keep date in filename
         episode_title = date_str
         new_filename = f"{series_title_clean} - {episode_title}{file.suffix}"
+
     return new_folder / new_filename, matched, True
 
 
@@ -250,7 +384,7 @@ def rename_movie_file(file):
     omdb_data = search_omdb(search_title, type_)
 
     if not omdb_data:
-        # Fallback naming: try to guess title and year from stem
+        # Fallback naming: try to guess the title and year from the stem
         base_title, year = _guess_title_and_year_from_stem(file.stem)
         title = sanitize_filename(base_title or search_title)
         # Determine if we have enough to safely rename
@@ -303,18 +437,21 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
     # Infer default destinations if not specified
     def _infer_roots(src: Path):
         parts = [p.lower() for p in src.parts]
-        if 'plex media' in parts and '1.rename' in parts:
-            # assume .../Plex Media/1.Rename
+        # Look for a folder named "1.Rename" or similar pattern
+        if '1.rename' in parts:
+            # Find the parent of 1.Rename
             try:
-                ix_pm = parts.index('plex media')
-                base = Path(*src.parts[:ix_pm + 1])
-            except ValueError:
+                ix_rename = parts.index('1.rename')
+                # Base is the parent directory of 1.Rename
+                base = Path(*src.parts[:ix_rename])
+            except (ValueError, IndexError):
                 base = src.parent
         else:
-            base = src
+            # If no 1.Rename folder found, use the parent of the source
+            base = src.parent
         up = base / '3.Upload'
         cv = base / '2.Convert'
-        mc = base / '1.Manual Check'
+        mc = base / '4.Issues'
         return up, cv, mc
 
     if upload_root is None or convert_root is None or manual_root is None:
@@ -332,11 +469,6 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
         new_file_path = None
         base_dest = None
         subdir = None
-        existing_imdb_id = get_existing_imdb_id(file)
-        if existing_imdb_id is not None:
-            if DEBUG:
-                print(f"[SKIP] Already has IMDb ID: {existing_imdb_id}")
-            continue
 
         season, episode = parse_tv_filename(file.stem)
         date_str, date_year = (None, None) if (season is not None) else parse_date_in_filename(file.stem)
@@ -347,31 +479,43 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
             if result:
                 new_file_path, matched, renamable = result
                 subdir = 'TV Shows'
-                if matched:
+                # Routing logic:
+                # - Not renamable -> 4.Issues
+                # - Non-MKV -> 2.Convert (needs conversion)
+                # - MKV + matched -> 3.Upload (ready for Plex)
+                # - MKV + unmatched but renamable -> 4.Issues (needs manual review)
+                if not renamable:
+                    base_dest = manual_root
+                elif file.suffix.lower() != '.mkv':
+                    base_dest = convert_root
+                elif matched:
                     base_dest = upload_root
                 else:
-                    if not renamable:
-                        base_dest = manual_root
-                    else:
-                        # Unmatched but renamable: route by extension
-                        base_dest = convert_root if file.suffix.lower() != '.mkv' else upload_root
+                    # Unmatched MKV - could go to upload but safer in issues for review
+                    base_dest = manual_root
         else:
             result = rename_movie_file(file)
             if result:
                 new_file_path, matched, renamable = result
                 subdir = 'Movies'
-                if matched:
+                # Same routing logic for movies
+                if not renamable:
+                    base_dest = manual_root
+                elif file.suffix.lower() != '.mkv':
+                    base_dest = convert_root
+                elif matched:
                     base_dest = upload_root
                 else:
-                    if not renamable:
-                        base_dest = manual_root
-                    else:
-                        base_dest = convert_root if file.suffix.lower() != '.mkv' else upload_root
+                    # Unmatched MKV - could go to upload but safer in issues for review
+                    base_dest = manual_root
 
         if result and new_file_path is not None and base_dest is not None and subdir is not None:
-            # new_file_path is relative (folder/name). Place under the appropriate base/subdir.
+            # Always place files under the appropriate base/subdir with the full Plex folder structure
             target = (base_dest / subdir / new_file_path).resolve()
-            proposed_renames.append((file, target))
+
+            # Only propose rename if the target is different from the source
+            if file.resolve() != target:
+                proposed_renames.append((file, target))
 
     if not proposed_renames:
         print("⚠️ No matching files found to rename.")
@@ -400,16 +544,40 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
             print(f"❌ Failed to rename {old}: {e}")
 
     # After moving files, prune any empty folders left under the source root
-    def _prune_empty_dirs(root: Path):
+    def _prune_empty_dirs(root: Path, upload: Path, convert: Path, manual: Path):
         removed = 0
+        root_resolved = root.resolve()
+        upload_resolved = upload.resolve()
+        convert_resolved = convert.resolve()
+        manual_resolved = manual.resolve()
+
+        # Keep these special folders even if empty
+        keep_folders = {
+            # Source folder structure
+            root_resolved,
+            (root_resolved / "Movies").resolve(),
+            (root_resolved / "TV Shows").resolve(),
+            # Upload folder structure
+            upload_resolved,
+            (upload_resolved / "Movies").resolve(),
+            (upload_resolved / "TV Shows").resolve(),
+            # Convert folder structure
+            convert_resolved,
+            (convert_resolved / "Movies").resolve(),
+            (convert_resolved / "TV Shows").resolve(),
+            # Issues folder structure
+            manual_resolved,
+            (manual_resolved / "Movies").resolve(),
+            (manual_resolved / "TV Shows").resolve(),
+        }
         # Walk bottom-up so children are pruned before parents
         for dirpath, dir_names, file_names in os.walk(root, topdown=False):
-            p = Path(dirpath)
-            # Keep the top-level root folder even if empty
-            if p.resolve() == root.resolve():
+            p = Path(dirpath).resolve()
+            # Keep the root folder and Movies/TV Shows subfolders even if empty
+            if p in keep_folders:
                 continue
             try:
-                # If directory is empty now, remove it
+                # If the directory is empty now, remove it
                 if not any(p.iterdir()):
                     p.rmdir()
                     removed += 1
@@ -420,7 +588,7 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
                     print(f"[PRUNE] Skipped {p}: {err}")
         return removed
 
-    pruned = _prune_empty_dirs(root_folder)
+    pruned = _prune_empty_dirs(root_folder, upload_root, convert_root, manual_root)
     if pruned:
         print(f"\n🧹 Removed {pruned} empty folder(s) from {root_folder}")
 
@@ -439,7 +607,7 @@ if __name__ == "__main__":
     parser.add_argument("--convert-root",
                         help="Root output folder for non-.mkv unmatched items (will create 'Movies' and 'TV Shows' inside)")
     parser.add_argument("--manual-root",
-                        help="Root output folder for items that cannot be safely renamed (will create 'Movies' and 'TV Shows' inside)")
+                        help="Root output folder for items that cannot be safely renamed (will create 'Movies' and 'TV Shows' inside). Defaults to '4.Issues'")
     args = parser.parse_args()
 
     DEBUG = args.debug
