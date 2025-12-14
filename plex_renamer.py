@@ -481,18 +481,11 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
                 subdir = 'TV Shows'
                 # Routing logic:
                 # - Not renamable -> 4.Issues
-                # - Non-MKV -> 2.Convert (needs conversion)
-                # - MKV + matched -> 3.Upload (ready for Plex)
-                # - MKV + unmatched but renamable -> 4.Issues (needs manual review)
+                # - All other files -> 2.Convert (needs conversion for quality consistency)
                 if not renamable:
                     base_dest = manual_root
-                elif file.suffix.lower() != '.mkv':
-                    base_dest = convert_root
-                elif matched:
-                    base_dest = upload_root
                 else:
-                    # Unmatched MKV - could go to upload but safer in issues for review
-                    base_dest = manual_root
+                    base_dest = convert_root
         else:
             result = rename_movie_file(file)
             if result:
@@ -501,13 +494,8 @@ def rename_files(root_folder: Path, dry_run=False, confirm=True, upload_root: Pa
                 # Same routing logic for movies
                 if not renamable:
                     base_dest = manual_root
-                elif file.suffix.lower() != '.mkv':
-                    base_dest = convert_root
-                elif matched:
-                    base_dest = upload_root
                 else:
-                    # Unmatched MKV - could go to upload but safer in issues for review
-                    base_dest = manual_root
+                    base_dest = convert_root
 
         if result and new_file_path is not None and base_dest is not None and subdir is not None:
             # Always place files under the appropriate base/subdir with the full Plex folder structure
@@ -605,9 +593,11 @@ if __name__ == "__main__":
     parser.add_argument("--upload-root",
                         help="Root output folder for matched items (will create 'Movies' and 'TV Shows' inside)")
     parser.add_argument("--convert-root",
-                        help="Root output folder for non-.mkv unmatched items (will create 'Movies' and 'TV Shows' inside)")
+                        help="Root output folder for items not in target format (will create 'Movies' and 'TV Shows' inside)")
     parser.add_argument("--manual-root",
                         help="Root output folder for items that cannot be safely renamed (will create 'Movies' and 'TV Shows' inside). Defaults to '4.Issues'")
+    parser.add_argument("--target-format", default=".mp4",
+                        help="Target video format (e.g., .mp4, .mkv). Files not in this format will be sent to convert folder. Default: .mp4")
     args = parser.parse_args()
 
     DEBUG = args.debug

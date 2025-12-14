@@ -1,6 +1,6 @@
-# 🎬 Plex Movie & TV Renamer (OMDb‑Powered)
+# 🎬 Plex Movie & TV Renamer (TVMaze & OMDb‑Powered)
 
-A small Python utility that renames movie and TV episode files into a Plex‑friendly structure using metadata from the OMDb API. It can detect TV episodes (`S01E02`), fetch IMDb IDs, and organize files into clean folders. Windows PowerShell examples are provided below; adapt commands for your OS as needed.
+A small Python utility that renames movie and TV episode files into a Plex‑friendly structure using metadata from the TVMaze and OMDb APIs. It can detect TV episodes (`S01E02`), fetch IMDb IDs, and organize files into clean folders. Windows PowerShell examples are provided below; adapt commands for your OS as needed.
 
 ---
 
@@ -19,26 +19,25 @@ A small Python utility that renames movie and TV episode files into a Plex‑fri
 
 ## ✨ Features
 
-- Automatic detection of TV episodes from filenames like `Show.Name.S02E03.mkv`
-- OMDb lookup for movies and TV series/episodes
+- Automatic detection of TV episodes from filenames like `Show.Name.S02E03.mp4` or date-based episodes
+- TVMaze API for TV shows (primary) with OMDb fallback for movies and additional episode data
 - Adds IMDb IDs to target folders for unambiguous identification when a match is found
 - Automatic routing of files:
   - Matched items (with IMDb ID) go to your Upload area
   - Unmatched but renamable items:
-    - If the file is .mkv → Upload area (keeps your MKVs ready for Plex)
-    - If the file is NOT .mkv → Convert area (to be transcoded first)
+    - file is successfully renamed → Convert area (to be transcoded first)
   - Not renamable (no reliable metadata and no safe fallback title) → Manual Check area
 - After real moves, automatically prunes now-empty directories left under the source root (keeps the top-level root)
 - Organized output structure, for example:
   ```
   Movies/
     The Matrix (1999) {imdb-tt0133093}/
-      The Matrix (1999).mkv
+      The Matrix (1999) {imdb-tt0133093}.mp4
 
   TV Shows/
-    Breaking Bad (2008) {imdb-tt0903747}/
+    Breaking Bad (2008-2013) {imdb-tt0903747}/
       Season 01/
-        Breaking Bad - s01e01 - Pilot.mkv
+        Breaking Bad - s01e01 - Pilot.mp4
   ```
 - Dry‑run mode to preview changes
 - Progress bar with tqdm
@@ -84,7 +83,7 @@ python -m pip install requests tqdm
 
 Basic form:
 ```powershell
-python .\plex_renamer.py "C:\\path\\to\\media" [--dry-run] [--no-confirm] [--debug] [--upload-root PATH] [--convert-root PATH] [--manual-root PATH]
+python .\plex_renamer.py "C:\\path\\to\\media" [--dry-run] [--no-confirm] [--debug] [--target-format FORMAT] [--upload-root PATH] [--convert-root PATH] [--manual-root PATH]
 ```
 
 Examples:
@@ -98,8 +97,11 @@ python .\plex_renamer.py "C:\\Media"
 # Skip confirmation and enable debug logging
 python .\plex_renamer.py "C:\\Media" --no-confirm --debug
 
+# Use MKV as target format instead of default MP4
+python .\plex_renamer.py "C:\\Media" --target-format .mkv
+
 # Explicitly provide output roots (script creates Movies/TV Shows subfolders under each)
-python .\plex_renamer.py "C:\\Media\\Plex Media\\1.Rename" --upload-root "C:\\Media\\Plex Media\\3.Upload" --convert-root "C:\\Media\\Plex Media\\2.Convert" --manual-root "C:\\Media\\Plex Media\\1.Manual Check"
+python .\plex_renamer.py "C:\\Media\\Plex Media\\1.Rename" --upload-root "C:\\Media\\Plex Media\\3.Upload" --convert-root "C:\\Media\\Plex Media\\2.Convert" --manual-root "C:\\Media\\Plex Media\\4.Issues"
 ```
 
 CLI options (from `argparse`):
@@ -107,14 +109,15 @@ CLI options (from `argparse`):
 - `--dry-run`: simulate renaming without making changes
 - `--no-confirm`: skip confirmation prompt
 - `--debug`: enable verbose debug output
-- `--upload-root`: root folder for matched items (IMDb‑identified) and unmatched `.mkv` files that were safely renamed. The script writes into `Movies/` and `TV Shows/` under this root.
-- `--convert-root`: root folder for unmatched, safely‑renamed non‑`.mkv` items (to be transcoded). The script writes into `Movies/` and `TV Shows/` under this root.
+- `--target-format`: target video format (e.g., `.mp4`, `.mkv`). Files not in this format will be sent to convert folder. Default: `.mp4`
+- `--upload-root`: root folder for matched items (IMDb‑identified) and unmatched files in target format that were safely renamed. The script writes into `Movies/` and `TV Shows/` under this root.
+- `--convert-root`: root folder for unmatched, safely‑renamed files not in target format (to be transcoded). The script writes into `Movies/` and `TV Shows/` under this root.
 - `--manual-root`: root folder for items that cannot be safely renamed (no reliable metadata and no usable fallback). The script writes into `Movies/` and `TV Shows/` under this root.
 
 Notes:
 - Supported extensions: `.mkv`, `.mp4`, `.avi`, `.mov`
 - Files/folders that already contain an IMDb ID pattern like `{imdb-tt1234567}` are skipped
-- If your source path looks like `...\Plex Media\1.Rename`, the script will automatically infer sibling destinations `...\Plex Media\1.Manual Check`, `...\Plex Media\2.Convert`, and `...\Plex Media\3.Upload` unless you pass the flags.
+- If your source path looks like `...\Plex Media\1.Rename`, the script will automatically infer sibling destinations `...\Plex Media\4.Issues`, `...\Plex Media\2.Convert`, and `...\Plex Media\3.Upload` unless you pass the flags.
 - In non-dry runs, after files are moved, the tool removes empty directories under the provided `root` to keep your staging area tidy (with `--debug`, it logs each pruned folder).
 
 ---
@@ -123,9 +126,9 @@ Notes:
 
 1) Recursively scans the given root for supported video files.
 2) Skips items already containing an IMDb ID.
-3) Detects TV episodes by `SxxExx` pattern; others are treated as movies.
-4) Queries OMDb for title/year/IMDb ID (and episode title for TV when available).
-5) If OMDb match exists, includes `{imdb-tt...}` in the folder name and routes to Upload. If no match, generates Plex‑style names from the filename (fallback) and routes as follows: `.mkv` → Upload; non‑`.mkv` → Convert; if no safe fallback title can be determined → Manual Check.
+3) Detects TV episodes by `SxxExx` pattern or date-based patterns; others are treated as movies.
+4) For TV shows: queries TVMaze API first for show metadata and episode titles, falls back to OMDb if needed. For movies: queries OMDb.
+5) If a match exists, includes `{imdb-tt...}` in the folder name and routes to Upload. If no match, generates Plex‑style names from the filename (fallback) and routes based on target format: files in target format (default `.mp4`) → Upload; files not in target format → Convert; if no safe fallback title can be determined → Manual Check.
 6) Prints a list of proposed renames/moves. In non‑dry runs, it moves files to the new structure and prunes now-empty directories under the source root.
 
 ---
