@@ -5,6 +5,7 @@ Automated pipeline to rename and transcode media files for Plex, optimized for A
 ## Features
 
 ### plex_pipeline.py (Recommended - Unified Pipeline)
+
 - **One-step processing**: Rename + Transcode in a single command
 - Automatically renames movies and TV shows with Plex-friendly names
 - Uses **TMDb API** (Plex's native metadata source)
@@ -33,11 +34,11 @@ Use these if you prefer to separate renaming and transcoding steps.
    brew install ffmpeg
    ```
 3. **TMDb API Key** (free)
-   - Go to https://www.themoviedb.org/signup
-   - Create an account
-   - Go to Settings → API
-   - Request an API key (select "Developer" option)
-   - Copy your API key
+    - Go to https://www.themoviedb.org/signup
+    - Create an account
+    - Go to Settings → API
+    - Request an API key (select "Developer" option)
+    - Copy your API key
 
 ## Installation
 
@@ -70,6 +71,7 @@ Use these if you prefer to separate renaming and transcoding steps.
 **One command does everything!**
 
 #### Folder Structure
+
 ```
 your-base-folder/
 ├── 1.Rename/          # Input: Place raw video files here
@@ -84,6 +86,7 @@ python3 plex_pipeline.py ./1.Rename --skip-hevc --delete-source
 ```
 
 **What it does:**
+
 - Scans files in `1.Rename/`
 - Searches TMDb for movie/TV metadata
 - Renames to Plex-friendly format with `{tmdb-12345}` IDs
@@ -92,6 +95,7 @@ python3 plex_pipeline.py ./1.Rename --skip-hevc --delete-source
 - Puts problematic files in `X.Issues/` for manual review
 
 **Example output:**
+
 ```
 Before: The.Movie.2024.1080p.WEB-DL.mkv
 After:  4.Upload/Movies/The Movie (2024) {tmdb-12345}/The Movie (2024).mp4
@@ -101,11 +105,13 @@ After:  4.Upload/TV Shows/Show (2020-) {tmdb-67890}/Season 01/Show - s01e05 - Ep
 ```
 
 **Recommended options:**
+
 - `--skip-hevc` - Skip transcoding files already in HEVC (just copies them)
 - `--delete-source` - Delete source files after successful processing
 - `--workers 2` - Number of parallel processes (default: 2)
 
 **Other options:**
+
 - `--dry-run` - Preview what would happen
 - `--overwrite` - Overwrite existing outputs
 - `--force-audio-aac` - Force AAC audio for all files
@@ -134,6 +140,7 @@ ls -la ./X.Issues/
 If you prefer to separate renaming and transcoding:
 
 #### Folder Structure
+
 ```
 your-base-folder/
 ├── 1.Rename/          # Input: Place raw video files here
@@ -149,6 +156,7 @@ python3 plex_renamer.py ./1.Rename
 ```
 
 **Options:**
+
 - `--dry-run` - Preview changes without moving files
 - `--debug` - Show detailed API search information
 - `--no-confirm` - Skip confirmation prompt
@@ -162,11 +170,13 @@ python3 plex_transcoder.py --src ./2.Staged --out ./4.Upload --skip-hevc --delet
 ```
 
 **Recommended options:**
+
 - `--skip-hevc` - Skip files already in HEVC (faster, recommended)
 - `--delete-source` - Delete source after successful transcode
 - `--workers 2` - Number of concurrent transcodes (default: 2)
 
 **Other options:**
+
 - `--dry-run` - Preview what would be transcoded
 - `--overwrite` - Overwrite existing outputs
 - `--only-avi` - Only process .avi files
@@ -200,12 +210,14 @@ ls -la ./X.Issues/
 ## Transcoding Settings
 
 ### 1080p Content
+
 - Codec: HEVC (H.265) Main profile
 - Bitrate: 7 Mbps (target) / 9 Mbps (max)
 - Container: MP4
 - Audio: Copy original or AAC 192k (for AVI)
 
 ### 4K/HDR Content
+
 - Codec: HEVC (H.265) Main10 profile
 - Bitrate: 20 Mbps (target) / 25 Mbps (max)
 - Pixel Format: p010le (10-bit for HDR)
@@ -217,6 +229,7 @@ ls -la ./X.Issues/
 The scripts follow Plex's recommended naming:
 
 **Movies:**
+
 ```
 Movies/
   Movie Title (2024) {tmdb-12345}/
@@ -224,6 +237,7 @@ Movies/
 ```
 
 **TV Shows:**
+
 ```
 TV Shows/
   Show Name (2020-2024) {tmdb-67890}/
@@ -235,13 +249,17 @@ TV Shows/
 ## Troubleshooting
 
 ### "TMDB_API_KEY environment variable is not set!"
+
 Make sure you've exported your TMDb API key:
+
 ```bash
 export TMDB_API_KEY="your_key_here"
 ```
 
 ### Files going to X.Issues folder
+
 These files couldn't be automatically identified. Common reasons:
+
 - Unclear filename
 - Not in TMDb database
 - Ambiguous search results
@@ -249,18 +267,23 @@ These files couldn't be automatically identified. Common reasons:
 Manually rename these files or fix the filename and re-run.
 
 ### "ffmpeg not found"
+
 Install ffmpeg:
+
 ```bash
 brew install ffmpeg
 ```
 
 ### Transcode is slow
+
 - Reduce `--workers` to 1
 - Check Activity Monitor for CPU/GPU usage
 - Ensure you're not running other intensive tasks
 
 ### Processing stopped early
+
 Check for errors in the output. Common issues:
+
 - Network timeout (TMDb API)
 - Disk space
 - Permission issues

@@ -1,10 +1,12 @@
 # 🎬 Plex Media Pipeline
 
-Automated tool to rename and transcode your Movies and TV Shows for Plex using the [TMDb API](https://www.themoviedb.org/). Optimized for Apple TV with hardware-accelerated HEVC transcoding.
+Automated tool to rename and transcode your Movies and TV Shows for Plex using
+the [TMDb API](https://www.themoviedb.org/). Optimized for Apple TV with hardware-accelerated HEVC transcoding.
 
 ---
 
 ## ✨ Features
+
 - **One-step processing**: Rename + Transcode in a single command
 - Auto-detects TV episodes (e.g., `S01E01`) and date-based episodes
 - TMDb lookups add `{tmdb-12345}` to folders for accurate Plex matching
@@ -16,6 +18,7 @@ Automated tool to rename and transcode your Movies and TV Shows for Plex using t
 ---
 
 ## 🚀 Quick Start (macOS)
+
 ```bash
 # Install dependencies
 brew install ffmpeg
@@ -31,6 +34,7 @@ python3 plex_pipeline.py ./1.Rename --skip-hevc --delete-source
 ---
 
 ## 📂 Example Output
+
 ```
 Movies/
   The Matrix (1999) {tmdb-603}/
@@ -45,6 +49,7 @@ TV Shows/
 ---
 
 ## 📁 Folder Structure
+
 ```
 1.Rename/      # Input: raw files
 4.Upload/      # Output: ready for Plex
@@ -54,6 +59,7 @@ X.Issues/      # Files needing manual review
 ---
 
 ## 🔧 Alternative: Two-Step Workflow
+
 ```bash
 # Step 1: Rename only
 python3 plex_renamer.py ./1.Rename
