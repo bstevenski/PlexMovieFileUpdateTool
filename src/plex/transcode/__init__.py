@@ -11,6 +11,7 @@ from .core import (
     is_4k,
     looks_hdr,
     build_ffmpeg_cmd,
+    transcode_video,
 )
 from .batch import (
     transcode_one,
@@ -25,6 +26,7 @@ __all__ = [
     "looks_hdr",
     # Transcoding
     "build_ffmpeg_cmd",
+    "transcode_video",
     "transcode_one",
     "iter_video_files",
 ]

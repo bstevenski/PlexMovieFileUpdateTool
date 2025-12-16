@@ -6,14 +6,26 @@ function with a threading lock, preventing potential race conditions when used
 from multiple threads.
 """
 import threading
+from datetime import datetime
 
 _print_lock = threading.Lock()
+_enable_timestamps = False
+
+
+def enable_timestamps(enabled: bool = True) -> None:
+    """Enable or disable timestamps in log output."""
+    global _enable_timestamps
+    _enable_timestamps = enabled
 
 
 def safe_print(*args, **kwargs) -> None:
     """Thread-safe print function to prevent race conditions in multi-threaded environments."""
     with _print_lock:
-        print(*args, **kwargs)
+        if _enable_timestamps:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{timestamp}]", *args, **kwargs, flush=True)
+        else:
+            print(*args, **kwargs, flush=True)
 
 
 def log_lookup_tv(filename: str, season: int, episode: int) -> None:

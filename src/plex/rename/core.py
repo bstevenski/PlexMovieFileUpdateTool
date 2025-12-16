@@ -95,7 +95,7 @@ def rename_movie_file(file: Path) -> Tuple[Path, bool, bool]:
     """
     logger.log_lookup_movie(file.name)
     base_title, guessed_year = parser.guess_title_and_year_from_stem(file.stem)
-    search_title = file_util.normalize_text(file.stem)
+    search_title = base_title if base_title else file_util.normalize_text(file.stem)
 
     tmdb_data = tmdb.search_tmdb_movie(search_title, year=int(guessed_year) if guessed_year else None)
     if not tmdb_data:
