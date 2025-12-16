@@ -9,7 +9,25 @@ organization. A debug setting is also included for troubleshooting processes.
 import os
 import re
 
-# Video file extensions
+# Content type constants
+CONTENT_TYPE_MOVIES = "Movies"
+CONTENT_TYPE_TV = "TV Shows"
+
+# Folder name constants
+QUEUE_FOLDER = "Queue"
+ERROR_FOLDER = "Errors"
+STAGED_FOLDER = "Staged"
+COMPLETED_FOLDER = "Completed"
+
+# Run settings
+DEBUG = False
+WORKERS = 4
+
+# Estimated processing parameters
+EST_AVG_SPEED = 2.0  # Estimated average speed multiplier for processing
+EST_AVG_VIDEO_LENGTH = 3600  # Estimated average video length in seconds (1 hour)
+
+# Accepted video file extensions
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".mov"}
 
 # Regex patterns for filename parsing
@@ -23,7 +41,7 @@ DATE_REGEXES = [
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
-# Status constants for consistent messaging
+# Processing status codes
 STATUS_STAGED = "STAGED"
 STATUS_STAGED_HEVC = "STAGED (HEVC copy)"
 STATUS_STAGED_NO_INFO = "STAGED (no codec info)"
@@ -34,13 +52,3 @@ STATUS_MOVED = "MOVED"
 STATUS_FAIL = "FAIL"
 STATUS_MANUAL = "MANUAL REVIEW"
 STATUS_DRY_RUN = "DRY-RUN"
-
-# Content type constants
-CONTENT_TYPE_MOVIES = "Movies"
-CONTENT_TYPE_TV = "TV Shows"
-
-# Folder name constants
-FOLDER_UPLOAD = "Processed"
-FOLDER_ISSUES = "NeedsReview"
-
-DEBUG = False

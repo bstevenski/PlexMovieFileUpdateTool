@@ -8,6 +8,7 @@ import os
 import shutil
 import signal
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,21 +16,62 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import plex
-from plex import rename, transcode, STATUS_STAGED, CONTENT_TYPE_TV, CONTENT_TYPE_MOVIES, STATUS_SKIP, STATUS_MANUAL, \
-    STATUS_FAIL, STATUS_STAGED_NO_INFO, STATUS_STAGED_HEVC, STATUS_DRY_RUN, STATUS_MOVED, STATUS_COPY, STATUS_OK, DEBUG
-from plex.utils import logger, system_util
+from plex import rename, transcode
+from plex.utils import logger, system_util, LogLevel, time_util
+from plex.utils.constants import (
+    QUEUE_FOLDER,
+    ERROR_FOLDER,
+    STAGED_FOLDER,
+    COMPLETED_FOLDER,
+    CONTENT_TYPE_TV,
+    CONTENT_TYPE_MOVIES,
+    STATUS_STAGED,
+    STATUS_STAGED_HEVC,
+    STATUS_STAGED_NO_INFO,
+    STATUS_SKIP,
+    STATUS_MANUAL,
+    STATUS_FAIL,
+    STATUS_DRY_RUN,
+    STATUS_MOVED,
+    STATUS_COPY,
+    STATUS_OK,
+    DEBUG,
+    WORKERS, VIDEO_EXTENSIONS
+)
+from plex.utils.time_util import get_eta_from_start
 
 in_debug_mode = DEBUG
 
 # Global executor reference for graceful shutdown
-_executor = None
-_shutdown_requested = False
+# Executor used for background transcoding tasks
+_executor: Optional[ThreadPoolExecutor] = None
+_shutdown_requested: bool = False
 
 
-def _signal_handler():
+def _signal_handler(signum, frame):
     """Handle termination signals gracefully."""
     global _shutdown_requested
     _shutdown_requested = True
+    # In debug mode, log details about the received signal and (lightweight) frame info
+    if getattr(plex, "DEBUG", False):
+        try:
+            sig_name = signal.Signals(signum).name
+        except ValueError:
+            # Fallback if the signal number isn't recognized
+            sig_name = str(signum)
+
+        location = None
+        if frame is not None:
+            mod = frame.f_globals.get("__name__", "?")
+            func = getattr(frame.f_code, "co_name", "?")
+            lineno = getattr(frame, "f_lineno", "?")
+            location = f" at {mod}.{func}:{lineno}"
+
+        try:
+            logger.safe_print(f"[DEBUG] Signal received: {sig_name} ({signum})" + (location or ""))
+        except (BrokenPipeError, OSError, UnicodeEncodeError):
+            # Never let debug logging raise inside a signal handler
+            pass
     logger.safe_print("\n⚠️  Shutdown signal received. Stopping gracefully...")
     logger.safe_print("⏳ Waiting for current transcoding jobs to complete...")
 
@@ -212,8 +254,8 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
 
     # Success - move transcoded file to Completed folder
     root_dir = source_root.parent
-    output_root = root_dir / "ToTranscode"
-    completed_root = root_dir / "Completed"
+    output_root = root_dir / STAGED_FOLDER
+    completed_root = root_dir / COMPLETED_FOLDER
     completed_target = completed_root / target.relative_to(output_root)
 
     try:
@@ -223,13 +265,6 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
     except (OSError, shutil.Error, PermissionError):
         # If move fails, leave in Transcoding folder
         final_target = target
-
-    if delete_source:
-        try:
-            file.unlink()
-            return file, final_target, f"{STATUS_OK} (source deleted)"
-        except (OSError, PermissionError) as e:
-            return file, final_target, f"{STATUS_OK} (failed to delete source: {e})"
 
     return file, final_target, STATUS_OK
 
@@ -241,7 +276,7 @@ def main():
         epilog="Example: plexifier /Users/briannastevenski/Plex"
     )
     parser.add_argument("root",
-                        help="Root directory containing ToProcess folder and where output folders will be created")
+                        help="Root directory containing Queue folder and where output folders will be created")
     parser.add_argument("--no-skip-hevc", action="store_true",
                         help="Transcode files already in HEVC (default: skip HEVC files)")
     parser.add_argument("--log-dir", help="Directory for log files (default: ./logs)")
@@ -292,21 +327,25 @@ def main():
         print(f"✅ Started background process (PID: {process.pid})")
         print(f"📝 Logging to: {log_path}")
         print(f"\nMonitor progress:")
-        print(f"  tail -f {log_path}")
+        print(f"  OR make logs")
         print(f"\nCheck if running:")
-        print(f"  ps {process.pid}")
+        print(f"  make ps")
+        print(f"\nStop process:")
+        print(f"  make kill")
         return
 
     plex.DEBUG = args.debug
 
+    # Set log level based on debug mode
+    if args.debug:
+        logger.set_log_level(LogLevel.DEBUG)
+    else:
+        logger.set_log_level(LogLevel.INFO)
+
     # Set defaults based on debug mode
-    workers = 4
     delete_source = not args.debug_keep_source  # Default: delete source (unless debug)
     overwrite = not args.debug_no_overwrite  # Default: overwrite (unless debug)
     dry_run = args.debug_dry_run  # Default: false (only in debug)
-
-    # Enable timestamps when running in background
-    logger.enable_timestamps(True)
 
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, _signal_handler)
@@ -318,108 +357,247 @@ def main():
 
     root_dir = Path(args.root).expanduser().resolve()
     if not root_dir.exists():
-        print(f"ERROR: Root directory does not exist: {root_dir}", file=sys.stderr)
+        logger.log("startup.error", LogLevel.ERROR, msg="Root directory does not exist", root=str(root_dir))
         sys.exit(2)
 
-    # Define folder structure
-    source_root = root_dir / "ToProcess"
-    output_root = root_dir / "ToTranscode"
-    manual_root = root_dir / "Errors"
+    # Resolve key folders under the provided root
+    queue_root = (root_dir / QUEUE_FOLDER).resolve()
+    staged_root = (root_dir / STAGED_FOLDER).resolve()
+    error_root = (root_dir / ERROR_FOLDER).resolve()
+    completed_root = (root_dir / COMPLETED_FOLDER).resolve()
 
-    if not source_root.exists():
-        print(f"ERROR: ToProcess folder does not exist: {source_root}", file=sys.stderr)
+    if not queue_root.exists():
+        logger.log("startup.error", LogLevel.ERROR, msg="Queue folder does not exist", path=str(queue_root))
         sys.exit(2)
 
-    output_root.mkdir(parents=True, exist_ok=True)
-    manual_root.mkdir(parents=True, exist_ok=True)
+    staged_root.mkdir(parents=True, exist_ok=True)
+    error_root.mkdir(parents=True, exist_ok=True)
+    completed_root.mkdir(parents=True, exist_ok=True)
 
     # Find all video files
-    all_files = [f for f in source_root.rglob("*") if f.is_file() and f.suffix.lower() in plex.VIDEO_EXTENSIONS]
+    all_files = [f for f in queue_root.rglob("*") if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS]
 
     if not all_files:
-        print("No video files found.")
+        logger.log("startup.complete", LogLevel.INFO, msg="No video files found", source=str(queue_root))
         return
 
-    print(f"Found {len(all_files)} files in: {source_root}")
-    print(f"Staging: {output_root}")
-    print(f"Completed: {root_dir / 'Completed'}")
-    print(f"Errors: {manual_root}")
     skip_hevc = not args.no_skip_hevc
-    print(f"Workers: {workers} | skip-hevc: {skip_hevc}")
 
-    if delete_source:
-        print(f"⚠️  Storage Mode: Source files will be MOVED/DELETED (saves space)")
-    else:
-        print(f"ℹ️  Storage Mode: Source files will be KEPT (uses more space)")
+    total_files_count = len(all_files)
+    eta_str = get_eta_from_start(total_files_count)
 
-    if dry_run:
-        print(f"🔍 DRY RUN MODE: No files will be modified")
+    start_time = time.time()
 
-    print()
+    logger.log("plexifier.start", LogLevel.INFO,
+               pid=os.getpid(),
+               files_found=total_files_count,
+               source=str(queue_root),
+               staging=str(staged_root),
+               completed=str(root_dir / COMPLETED_FOLDER),
+               errors=str(error_root),
+               WORKERS=WORKERS,
+               skip_hevc=skip_hevc,
+               delete_source=delete_source,
+               dry_run=dry_run,
+               eta=eta_str)
 
-    # Phase 1: Stage all files (fast - just lookups and file checks)
+    # Phase 1: Stage all files by renaming/moving from Queue -> Staged using batch API
     logger.safe_print("\n=== Phase 1: Staging files ===")
-    staged_files = []
     results = []
 
-    for idx, file in enumerate(all_files, 1):
-        progress_pct = (idx / len(all_files)) * 100
-        source_file, dest_file, status, staged = stage_file(file, output_root, manual_root, skip_hevc, overwrite,
-                                                            dry_run)
+    try:
+        # Use batch renamer: scan Queue, compute Plex-friendly paths, move to Staged; non-renamables -> Errors
+        # Non-interactive; honors dry_run.
+        rename.rename_files(queue_root, stage_root=staged_root, error_root=error_root, dry_run=dry_run)
+    except SystemExit:
+        # rename_files may sys.exit(0) on dry-run or no files; continue flow safely
+        pass
 
-        if staged:
-            staged_files.append(staged)
-
-        if status not in [plex.STATUS_STAGED, plex.STATUS_STAGED_HEVC, plex.STATUS_STAGED_NO_INFO]:
-            results.append((source_file, dest_file, status))
-
-        if dest_file and status not in [plex.STATUS_STAGED, plex.STATUS_STAGED_HEVC,
-                                        plex.STATUS_STAGED_NO_INFO]:
-            logger.safe_print(f"[{idx}/{len(all_files)} - {progress_pct:.1f}%] [{status}] {source_file.name}")
+    # After staging, discover staged files for transcoding
+    staged_file_paths = transcode.iter_video_files(staged_root)
+    staged_count = len(staged_file_paths)
 
     logger.safe_print(
-        f"\nStaging complete: {len(staged_files)} files ready for transcoding, {len(results)} already processed")
+        f"\nStaging complete: {staged_count} files ready for transcoding")
 
-    if not staged_files:
+    if not staged_file_paths:
         logger.safe_print("No files need transcoding.")
     else:
         # Phase 2: Transcode staged files (slow - actual video processing)
-        logger.safe_print(f"\n=== Phase 2: Transcoding {len(staged_files)} files ===\n")
-        transcoded = 0
+        logger.safe_print(f"\n=== Phase 2: Transcoding {staged_count} files ===\n")
+        transcoded_count = 0
 
         global _executor
-        _executor = ThreadPoolExecutor(max_workers=workers)
+        _executor = ThreadPoolExecutor(max_workers=WORKERS)
         try:
-            futs = {_executor.submit(transcode_file, staged, delete_source, dry_run, args.debug, source_root): staged
-                    for staged in staged_files}
+            # Build adapter for transcode.batch.transcode_one expected args
+            from types import SimpleNamespace
+            _Args = SimpleNamespace(
+                overwrite=overwrite,
+                skip_hevc=skip_hevc,
+                force_audio_aac=False,
+                no_subs=False,
+                dry_run=dry_run,
+                debug=args.debug,
+                delete_source=delete_source,
+            )
+
+            futs = {
+                _executor.submit(
+                    transcode.transcode_one,
+                    src,
+                    staged_root,
+                    completed_root,
+                    _Args,
+                ): src for src in staged_file_paths
+            }
             for fut in as_completed(futs):
                 if _shutdown_requested:
                     logger.safe_print("⚠️  Shutdown requested, stopping new jobs...")
                     break
 
                 source_file, dest_file, status = fut.result()
-                results.append((source_file, dest_file, status))
-                transcoded += 1
-
-                progress_pct = (transcoded / len(staged_files)) * 100
-                if dest_file:
-                    logger.safe_print(
-                        f"[{transcoded}/{len(staged_files)} - {progress_pct:.1f}%] [{status}] {source_file.name} -> {dest_file.name}")
+                # Handle outcomes: move/copy/move to error as needed
+                if status == STATUS_OK and dest_file:
+                    # On success, remove staged source if requested (transcode handled delete when asked)
+                    try:
+                        if source_file.exists() and delete_source:
+                            source_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                elif status.startswith(STATUS_SKIP):
+                    # Move skipped file to Completed preserving original extension
+                    rel = source_file.relative_to(staged_root)
+                    skip_target = (completed_root / rel).resolve()
+                    skip_target.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        if not dry_run:
+                            shutil.move(str(source_file), str(skip_target))
+                        dest_file = skip_target
+                    except Exception:
+                        # If move fails, send to Errors
+                        err_target = (error_root / rel).resolve()
+                        err_target.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            shutil.move(str(source_file), str(err_target))
+                            dest_file = err_target
+                            status = STATUS_FAIL
+                        except Exception:
+                            status = STATUS_FAIL
                 else:
-                    logger.safe_print(
-                        f"[{transcoded}/{len(staged_files)} - {progress_pct:.1f}%] [{status}] {source_file.name}")
+                    # Failure case: move staged to Errors
+                    rel = source_file.relative_to(staged_root)
+                    err_target = (error_root / rel).resolve()
+                    err_target.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        if not dry_run:
+                            shutil.move(str(source_file), str(err_target))
+                        dest_file = err_target
+                    except Exception:
+                        pass
+
+                results.append((source_file, dest_file, status))
+                transcoded_count += 1
+
+                # Calculate overall progress
+                if transcoded_count > 0:
+                    progress_pct = (transcoded_count / staged_count) * 100
+                    elapsed_seconds = time.time() - start_time
+                    eta_str = time_util.get_eta_total(transcoded_count, staged_count, elapsed_seconds)
+                    logger.log("plexifier.progress", LogLevel.INFO,
+                               completed=transcoded_count,
+                               total=staged_count,
+                               pct=round(progress_pct, 1),
+                               eta=eta_str)
         finally:
             _executor.shutdown(wait=True)
             _executor = None
 
     ok = sum(1 for _, _, s in results if
-             plex.STATUS_OK in s or plex.STATUS_COPY in s or plex.STATUS_MOVED in s)
-    skip = sum(1 for _, _, s in results if s.startswith(plex.STATUS_SKIP))
-    manual = sum(1 for _, _, s in results if s.startswith(plex.STATUS_MANUAL))
-    fail = sum(1 for _, _, s in results if s.startswith(plex.STATUS_FAIL))
-    dry = sum(1 for _, _, s in results if s.startswith(plex.STATUS_DRY_RUN))
+             STATUS_OK in s or STATUS_COPY in s or STATUS_MOVED in s)
+    skip = sum(1 for _, _, s in results if s.startswith(STATUS_SKIP))
+    manual = sum(1 for _, _, s in results if s.startswith(STATUS_MANUAL))
+    fail = sum(1 for _, _, s in results if s.startswith(STATUS_FAIL))
+    dry = sum(1 for _, _, s in results if s.startswith(STATUS_DRY_RUN))
 
-    print(f"\n🎉 Done. OK={ok} MANUAL={manual} SKIP={skip} FAIL={fail} DRY-RUN={dry}")
+    # Final cleanup and pruning according to rules
+    def _prune_staged_move_strays_to_errors(staged: Path, errors: Path):
+        if not staged.exists():
+            return 0
+        moved = 0
+        for p in staged.rglob("*"):
+            if p.is_file():
+                _rel = p.relative_to(staged)
+                _err_target = (errors / _rel).resolve()
+                _err_target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    shutil.move(str(p), str(_err_target))
+                    moved += 1
+                except Exception:
+                    pass
+        # Remove staged folder entirely
+        try:
+            shutil.rmtree(staged, ignore_errors=True)
+        except Exception:
+            pass
+        return moved
+
+    def _prune_queue_keep_top_subdirs(queue: Path, errors: Path):
+        if not queue.exists():
+            return 0
+        moved = 0
+        # Move all files under Queue to Errors
+        for p in queue.rglob("*"):
+            if p.is_file():
+                try:
+                    _rel = p.relative_to(queue)
+                except ValueError:
+                    continue
+                _err_target = (errors / _rel).resolve()
+                _err_target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    shutil.move(str(p), str(_err_target))
+                    moved += 1
+                except Exception:
+                    pass
+        # Remove all directories under Queue, then recreate Movies and TV Shows
+        try:
+            for child in queue.iterdir():
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=True)
+        except Exception:
+            pass
+        # Recreate empty Movies and TV Shows subfolders
+        (queue / CONTENT_TYPE_MOVIES).mkdir(parents=True, exist_ok=True)
+        (queue / CONTENT_TYPE_TV).mkdir(parents=True, exist_ok=True)
+        return moved
+
+    if not dry_run:
+        logger.safe_print("\n=== Final cleanup ===")
+        moved_staged = _prune_staged_move_strays_to_errors(staged_root, error_root)
+        moved_queue = _prune_queue_keep_top_subdirs(queue_root, error_root)
+        if moved_staged:
+            logger.safe_print(f"🧹 Moved {moved_staged} stray file(s) from Staged to Errors and removed Staged folder")
+        if moved_queue:
+            logger.safe_print(f"🧹 Moved {moved_queue} stray file(s) from Queue to Errors and reset Queue structure")
+
+    # Calculate runtime
+    runtime_seconds = int(time.time() - start_time)
+    runtime_hours = runtime_seconds // 3600
+    runtime_mins = (runtime_seconds % 3600) // 60
+    runtime_secs = runtime_seconds % 60
+    runtime_str = f"{runtime_hours:02d}:{runtime_mins:02d}:{runtime_secs:02d}.000"
+
+    logger.log("plexifier.end", LogLevel.INFO,
+               pid=os.getpid(),
+               runtime=runtime_str,
+               completed=str(root_dir / 'Completed'),
+               errors=str(error_root),
+               ok=ok,
+               manual=manual,
+               skip=skip,
+               fail=fail,
+               dry_run=dry)
 
 
 if __name__ == "__main__":

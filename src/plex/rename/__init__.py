@@ -44,28 +44,21 @@ Dependencies and compatibility:
 - Written for modern Python (3.8+). Platform-independent, used on macOS in the
   development environment.
 """
-# Public parsing functions
+# Public rename functions
+from .batch import rename_files
+from .core import (
+    rename_tv_file,
+    rename_movie_file,
+)
 from .parser import (
     parse_tv_filename,
     parse_date_in_filename,
 )
 
-# Core renaming functions
-from .core import (
-    rename_tv_file,
-    rename_movie_file,
-)
-
-# Batch processing
-from .batch import rename_files
-
 __all__ = [
-    # Parsing
     "parse_tv_filename",
     "parse_date_in_filename",
-    # Core renaming
     "rename_tv_file",
     "rename_movie_file",
-    # Batch processing
     "rename_files",
 ]

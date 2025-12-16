@@ -13,14 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List, Tuple
 
-from plex.utils import system_util
-from plex.utils.logger import (
-    log_transcode_start,
-    log_transcode_complete,
-    log_transcode_failed,
-    log_detail,
-    safe_print
-)
+from plex.utils import system_util, logger, time_util, LogLevel
 
 
 @dataclass
@@ -74,26 +67,26 @@ def ffprobe_video_info(path: Path) -> Optional[VideoInfo]:
     )
 
 
-def is_4k(info: VideoInfo) -> bool:
+def _is_4k(info: VideoInfo) -> bool:
     """Check if video resolution is 4K or higher."""
     return (info.width or 0) >= 3800 or (info.height or 0) >= 2000
 
 
-def looks_hdr(info: VideoInfo) -> bool:
+def _looks_hdr(info: VideoInfo) -> bool:
     """Check if video appears to be HDR based on color metadata."""
     return (info.color_primaries == "bt2020") or (info.color_transfer in {"smpte2084", "arib-std-b67"})
 
 
-def build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool, include_subs: bool) -> List[str]:
+def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool) -> List[str]:
     """Build ffmpeg command for transcoding video to HEVC."""
     dst.parent.mkdir(parents=True, exist_ok=True)
 
-    if is_4k(info):
+    if _is_4k(info):
         v_bitrate = "20000k"
         maxrate = "25000k"
         bufsize = "40000k"
         profile = "main10"
-        pix_fmt = "p010le" if looks_hdr(info) else "yuv420p"
+        pix_fmt = "p010le" if _looks_hdr(info) else "yuv420p"
     else:
         v_bitrate = "7000k"
         maxrate = "9000k"
@@ -136,7 +129,8 @@ def build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: boo
 
 
 def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool = False,
-                    include_subs: bool = True, debug: bool = False) -> Tuple[int, str, str]:
+                    include_subs: bool = True, debug: bool = False, delete_source: bool = False) -> Tuple[
+    int, str, str]:
     """
     Transcode a video file to HEVC with logging and progress updates.
 
@@ -147,19 +141,28 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
         force_audio_aac: Force AAC audio encoding (default: False, copies audio)
         include_subs: Include subtitle streams (default: True)
         debug: Enable debug logging (default: False)
+        delete_source: Delete source file after successful transcode (default: False)
 
     Returns:
         Tuple of (exit_code, stdout, stderr)
     """
-    cmd = build_ffmpeg_cmd(src, dst, info, force_audio_aac, include_subs)
+    cmd = _build_ffmpeg_cmd(src, dst, info, force_audio_aac)
 
-    log_transcode_start(src.name, dst.name)
+    logger.log("transcode.start", LogLevel.INFO,
+               file=src.name,
+               dst=dst.name)
+
     if debug:
-        is_4k_video = is_4k(info)
-        is_hdr_video = looks_hdr(info)
-        log_detail(f"Source: {info.codec.upper()} {info.width}x{info.height}")
-        log_detail(f"Target: HEVC (H.265) {'4K' if is_4k_video else '1080p'} {'HDR' if is_hdr_video else 'SDR'}")
-        log_detail(f"Audio: {'AAC' if force_audio_aac else 'Copy'} | Subtitles: {'Yes' if include_subs else 'No'}")
+        is_4k_video = _is_4k(info)
+        is_hdr_video = _looks_hdr(info)
+        logger.log("transcode.details", LogLevel.DEBUG,
+                   source_codec=info.codec.upper(),
+                   source_res=f"{info.width}x{info.height}",
+                   target="HEVC (H.265)",
+                   quality='4K' if is_4k_video else '1080p',
+                   hdr='HDR' if is_hdr_video else 'SDR',
+                   audio='AAC' if force_audio_aac else 'Copy',
+                   subtitles='Yes' if include_subs else 'No')
 
     # Run ffmpeg with progress monitoring
     process = subprocess.Popen(
@@ -194,13 +197,13 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                     if time_match and speed_match:
                         time_str = time_match.group(1)
                         speed_str = speed_match.group(1).rstrip('x')
-                        size_match = re.search(r'size=\s*(\S+)', line)
 
                         try:
                             # Convert time string to seconds
                             time_parts = time_str.split(':')
                             if len(time_parts) == 3:
-                                elapsed_seconds = float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(time_parts[2])
+                                elapsed_seconds = float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(
+                                    time_parts[2])
 
                                 if info.duration:
                                     # Calculate percentage
@@ -209,22 +212,26 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                                     # Calculate ETA based on encoding speed
                                     speed_val = float(speed_str)
                                     if speed_val > 0:
-                                        remaining_seconds = (info.duration - elapsed_seconds) / speed_val
-                                        eta_minutes = int(remaining_seconds / 60)
-                                        eta_hours = eta_minutes // 60
-                                        eta_mins = eta_minutes % 60
+                                        eta_str = time_util.get_eta_single_file(info.duration, speed_val,
+                                                                                elapsed_seconds)
 
-                                        if eta_hours > 0:
-                                            eta_str = f"{eta_hours}h {eta_mins}m"
-                                        else:
-                                            eta_str = f"{eta_mins}m"
-
-                                        safe_print(f"  └─ Progress [{src.name}]: {percent:.1f}% complete | ETA: {eta_str} (speed: {speed_str}x)")
+                                        logger.log("transcode.progress", LogLevel.INFO,
+                                                   file=src.name,
+                                                   pct=round(percent, 1),
+                                                   eta=eta_str,
+                                                   speed=f"{speed_str}x")
                                     else:
-                                        safe_print(f"  └─ Progress [{src.name}]: {percent:.1f}% complete")
+                                        logger.log("transcode.progress", LogLevel.INFO,
+                                                   file=src.name,
+                                                   pct=round(percent, 1),
+                                                   speed=f"{speed_str}x")
                                 else:
                                     # Duration not available
-                                    safe_print(f"  └─ Progress [{src.name}]: N/A complete | ETA: N/A (speed: {speed_str}x)")
+                                    logger.log("transcode.progress", LogLevel.INFO,
+                                               file=src.name,
+                                               pct="N/A",
+                                               eta="N/A",
+                                               speed=f"{speed_str}x")
                         except (ValueError, ZeroDivisionError):
                             pass  # Skip progress update if parsing fails
 
@@ -238,10 +245,23 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
     code = process.returncode
 
     if code != 0:
-        log_transcode_failed(src.name)
-        if debug:
-            log_detail(f"Error: {stderr_text[:200]}")
+        logger.log("transcode.failed", LogLevel.ERROR,
+                   file=src.name,
+                   exit_code=code,
+                   error=stderr_text[:200] if debug else "see logs")
     else:
-        log_transcode_complete(src.name)
+        source_deleted = False
+        if delete_source:
+            try:
+                src.unlink()
+                source_deleted = True
+            except (OSError, PermissionError) as e:
+                logger.log("transcode.delete_failed", LogLevel.WARN,
+                           file=src.name,
+                           error=str(e))
+
+        logger.log("transcode.complete", LogLevel.INFO,
+                   file=src.name,
+                   source_deleted=source_deleted)
 
     return code, stdout, stderr_text

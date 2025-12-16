@@ -1,114 +1,131 @@
-# Plex Media Renamer & Transcoder
+# Plex Media Tool — Rename + Transcode Pipeline
 
-Automated pipeline to rename and transcode media files for Plex, optimized for Apple TV playback.
+Automated, non-interactive pipeline to rename and transcode media for Plex. Optimized for Apple devices (Apple TV,
+iPhone, Mac) using VideoToolbox hardware acceleration.
 
-## Features
+## Overview
 
-### plex_pipeline.py (Recommended - Unified Pipeline)
+Single CLI `src/plexifier.py` orchestrates two phases:
 
-- **One-step processing**: Rename + Transcode in a single command
-- Automatically renames movies and TV shows with Plex-friendly names
-- Uses **TMDb API** (Plex's native metadata source)
-- Adds TMDb IDs to folder names for accurate Plex matching
-- Hardware-accelerated transcoding using Apple M1 VideoToolbox
-- Converts to HEVC (H.265) for Apple TV direct play
-- Auto-detects 1080p vs 4K and adjusts bitrate
-- Preserves HDR metadata
-- Parallel processing for faster batch conversion
-- Supports TV shows (seasonal and date-based episodes)
-- Supports movies with year detection
-- Optional source deletion after successful processing
+- Phase 1 — Rename/Stage: Scan `Queue` and move files into `Staged` with Plex-friendly names and folders. Unrenamable
+  files go to `Errors`.
+- Phase 2 — Transcode: Read from `Staged`, transcode to MP4 (HEVC/AAC as needed), then move results to `Completed`.
+  Failures go to `Errors`.
+- Final cleanup — Remove `Staged` entirely, move any strays in `Staged`/`Queue` to `Errors`, and reset `Queue` to only
+  `Movies` and `TV Shows` subfolders. `Completed` and `Errors` are left untouched.
 
-### Individual Scripts (Alternative Two-Step Workflow)
-
-**plex_renamer.py** - Renames files only
-**plex_transcoder.py** - Transcodes files only
-
-Use these if you prefer to separate renaming and transcoding steps.
+The CLI is non-interactive and safe for background runs.
 
 ## Prerequisites
 
-1. **Python 3.9+**
-2. **FFmpeg** with VideoToolbox support (for transcoding)
+1. Python 3.9+
+2. FFmpeg with VideoToolbox (macOS):
    ```bash
    brew install ffmpeg
    ```
-3. **TMDb API Key** (free)
-    - Go to https://www.themoviedb.org/signup
-    - Create an account
-    - Go to Settings → API
-    - Request an API key (select "Developer" option)
-    - Copy your API key
-
-## Installation
-
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/yourusername/plex_renamer.git
-   cd plex_renamer
-   ```
-
-2. Install Python dependencies:
-   ```bash
-   pip install requests tqdm
-   ```
-
-3. Set your TMDb API key:
+3. TMDb API Key (free): set environment variable
    ```bash
    export TMDB_API_KEY="your_api_key_here"
    ```
 
-   To make it permanent, add to your `~/.zshrc` or `~/.bashrc`:
-   ```bash
-   echo 'export TMDB_API_KEY="your_api_key_here"' >> ~/.zshrc
-   source ~/.zshrc
-   ```
+## Folder structure
 
-## Workflow Options
-
-### Option 1: Unified Pipeline (Recommended)
-
-**One command does everything!**
-
-#### Folder Structure
+Your root folder will contain:
 
 ```
-your-base-folder/
-├── 1.Rename/          # Input: Place raw video files here
-├── 4.Upload/          # Auto-created: Final transcoded files for Plex
-└── X.Issues/          # Auto-created: Files that need manual review
+Root/
+├── Queue/
+│   ├── Movies/
+│   └── TV Shows/
+├── Staged/            # auto-created
+├── Completed/         # auto-created
+└── Errors/            # auto-created
 ```
 
-#### Single Step: Process Everything
+Place your source files under `Queue/Movies` or `Queue/TV Shows`.
+
+## Usage
+
+Run from project root (or install as a script) and pass your media root:
 
 ```bash
-python3 plex_pipeline.py ./1.Rename --skip-hevc --delete-source
+python3 src/plexifier.py /path/to/Root
 ```
 
-**What it does:**
+Behavior by default:
 
-- Scans files in `1.Rename/`
-- Searches TMDb for movie/TV metadata
-- Renames to Plex-friendly format with `{tmdb-12345}` IDs
-- Transcodes to HEVC using M1 hardware acceleration
-- Outputs directly to `4.Upload/` ready for Plex
-- Puts problematic files in `X.Issues/` for manual review
+- Non-interactive (no prompts)
+- Uses 4 worker threads for transcoding
+- Deletes staged source after successful transcode unless `--debug-keep-source`
+- Overwrites existing outputs unless `--debug-no-overwrite`
+- Honors `--debug-dry-run` for a preview-only run
 
-**Example output:**
+### CLI flags
 
 ```
-Before: The.Movie.2024.1080p.WEB-DL.mkv
-After:  4.Upload/Movies/The Movie (2024) {tmdb-12345}/The Movie (2024).mp4
+positional:
+  root                  Root directory containing Queue and where Staged/Completed/Errors live
 
-Before: Show.S01E05.Episode.Title.avi
-After:  4.Upload/TV Shows/Show (2020-) {tmdb-67890}/Season 01/Show - s01e05 - Episode Title.mp4
+optional:
+  --log-dir DIR         Directory for log files (default: ./logs)
+  --debug               Foreground mode + verbose logging
+  --debug-keep-source   Keep source files after processing (no delete)
+  --debug-no-overwrite  Do not overwrite existing outputs
+  --debug-dry-run       Preview actions without moving/transcoding
+  --no-skip-hevc        (Kept for compatibility; currently no-op — HEVC is processed)
+  --version             Show version and exit
 ```
 
-**Recommended options:**
+Notes:
 
-- `--skip-hevc` - Skip transcoding files already in HEVC (just copies them)
-- `--delete-source` - Delete source files after successful processing
-- `--workers 2` - Number of parallel processes (default: 2)
+- The previous `--only-avi` option has been removed.
+- HEVC skipping has been disabled by design; all files in `Queue` are treated as needing processing. The
+  `--no-skip-hevc` flag is retained only for CLI compatibility.
+
+### Background mode
+
+- Default: If you do not pass `--debug`, `plexifier.py` relaunches itself in the background and writes logs to
+  `./logs/plexifier-YYYYMMDD-HHMMSS.log`.
+- Foreground: Use `--debug` to run in the foreground with detailed logs.
+
+If you use the provided Makefile, handy commands:
+
+```bash
+make logs   # tail the latest log
+make ps     # show running plexifier processes
+make kill   # kill running plexifier processes
+```
+
+## How it works (high level)
+
+1. Rename & Stage (Queue → Staged/Errors)
+    - Scans `Queue` recursively for supported video extensions
+    - Infers Movies vs TV (season/date-based) using filename parsing
+    - Queries TMDb where appropriate; formats names and folders
+    - Moves renamable files into `Staged/[Movies|TV Shows]/...`
+    - Sends ambiguous/unmatched files to `Errors` for manual review
+2. Transcode (Staged → Completed)
+    - 4-thread pool runs `plex.transcode.batch.transcode_one`
+    - Outputs `.mp4`; may force audio to AAC for `.avi` inputs
+    - On success: file is placed in `Completed` and staged source removed (unless debug keep)
+    - On failure: staged source is moved to `Errors`
+3. Cleanup
+    - Move any strays from `Staged`/`Queue` to `Errors`
+    - Remove `Staged` entirely; reset `Queue` to only the two subfolders
+
+## Developer notes
+
+- Folder names are centralized in `plex.utils.constants`:
+  `QUEUE_FOLDER`, `STAGED_FOLDER`, `ERROR_FOLDER`, `COMPLETED_FOLDER`.
+- Batch entrypoints used by the CLI:
+    - `plex.rename.batch.rename_files(root, stage_root, error_root, dry_run)`
+    - `plex.transcode.batch.iter_video_files(staged_root)`
+    - `plex.transcode.batch.transcode_one(src, staged_root, completed_root, args)`
+- No interactive prompts anywhere. Dry-run prints proposed renames and exits.
+
+## License
+
+MIT © 2025
 
 **Other options:**
 

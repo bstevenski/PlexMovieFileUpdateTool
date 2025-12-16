@@ -15,39 +15,6 @@ The module is organized into several categories:
 """
 __version__ = "1.0.0"
 
-from plex.utils import (
-    DEBUG,
-    VIDEO_EXTENSIONS,
-    STATUS_STAGED,
-    STATUS_STAGED_HEVC,
-    STATUS_STAGED_NO_INFO,
-    STATUS_SKIP,
-    STATUS_OK,
-    STATUS_COPY,
-    STATUS_MOVED,
-    STATUS_FAIL,
-    STATUS_MANUAL,
-    STATUS_DRY_RUN,
-    CONTENT_TYPE_MOVIES,
-    CONTENT_TYPE_TV
-)
-
 __all__ = [
-    # Version
-    "__version__",
-    # Utils
-    "DEBUG",
-    "VIDEO_EXTENSIONS",
-    "STATUS_STAGED",
-    "STATUS_STAGED_HEVC",
-    "STATUS_STAGED_NO_INFO",
-    "STATUS_SKIP",
-    "STATUS_OK",
-    "STATUS_COPY",
-    "STATUS_MOVED",
-    "STATUS_FAIL",
-    "STATUS_MANUAL",
-    "STATUS_DRY_RUN",
-    "CONTENT_TYPE_MOVIES",
-    "CONTENT_TYPE_TV"
+    "__version__"
 ]

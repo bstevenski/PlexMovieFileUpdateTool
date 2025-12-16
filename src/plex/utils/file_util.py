@@ -10,31 +10,7 @@ import re
 from pathlib import Path
 from typing import Tuple
 
-
-def infer_output_roots(src: Path) -> Tuple[Path, Path]:
-    """
-    Infer default output paths for processed files and manual review.
-    Returns (output_root, manual_root)
-    """
-    parts = [p.lower() for p in src.parts]
-    # Look for a folder named "ToProcess" or legacy names
-    base = None
-    for folder_name in ['toprocess', '1.rename']:
-        if folder_name in parts:
-            try:
-                ix = parts.index(folder_name)
-                base = Path(*src.parts[:ix])
-                break
-            except (ValueError, IndexError):
-                pass
-
-    if base is None:
-        # If no known folder found, use the parent of the source
-        base = src.parent
-
-    out = base / 'Processed'
-    mc = base / 'NeedsReview'
-    return out, mc
+from plex.utils import STAGED_FOLDER, ERROR_FOLDER, COMPLETED_FOLDER
 
 
 def normalize_text(text: str) -> str:
@@ -51,3 +27,16 @@ def sanitize_filename(name: str) -> str:
     invalid_chars = '<>:"/\\|?*'
     translation_table = str.maketrans('', '', invalid_chars)
     return name.translate(translation_table).strip()
+
+
+def set_root_folders(base: Path) -> Tuple[Path, Path, Path]:
+    """
+    Create and return paths for Staged, Errors, and Completed folders under base.
+    """
+    staged_root = base / STAGED_FOLDER
+    error_root = base / ERROR_FOLDER
+    complete_root = base / COMPLETED_FOLDER
+    staged_root.mkdir(parents=True, exist_ok=True)
+    error_root.mkdir(parents=True, exist_ok=True)
+    complete_root.mkdir(parents=True, exist_ok=True)
+    return staged_root, error_root, complete_root

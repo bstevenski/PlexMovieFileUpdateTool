@@ -4,28 +4,20 @@ This package provides two levels of functionality:
 - core: Low-level FFmpeg utilities (VideoInfo, probing, command building)
 - batch: High-level transcoding orchestration (single file processing, file discovery)
 """
-
-from .core import (
-    VideoInfo,
-    ffprobe_video_info,
-    is_4k,
-    looks_hdr,
-    build_ffmpeg_cmd,
-    transcode_video,
-)
+# Public transcode functions
 from .batch import (
     transcode_one,
     iter_video_files,
 )
+from .core import (
+    VideoInfo,
+    ffprobe_video_info,
+    transcode_video,
+)
 
 __all__ = [
-    # Video info
     "VideoInfo",
     "ffprobe_video_info",
-    "is_4k",
-    "looks_hdr",
-    # Transcoding
-    "build_ffmpeg_cmd",
     "transcode_video",
     "transcode_one",
     "iter_video_files",
