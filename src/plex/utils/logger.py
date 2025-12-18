@@ -14,6 +14,7 @@ _log_level = None
 _worker_id_map = {}
 _worker_counter = 0
 _worker_lock = threading.Lock()
+_separator = " | "
 
 
 class LogLevel(Enum):
@@ -53,7 +54,7 @@ def _format_kv(data: Dict[str, Any]) -> str:
             parts.append(f'{key}={str(value).lower()}')
         else:
             parts.append(f'{key}={value}')
-    return '\t'.join(parts)
+    return _separator.join(parts)
 
 
 def _should_log(level: LogLevel) -> bool:
@@ -83,9 +84,9 @@ def log(event: str, level: LogLevel = LogLevel.INFO, **kwargs) -> None:
         kv_str = _format_kv(kwargs) if kwargs else ""
 
         if kv_str:
-            print(f"{timestamp}\t[{level_str}]\t{event}\t{kv_str}", flush=True)
+            print(f"{timestamp}{_separator}[{level_str}]{_separator}{event}{_separator}{kv_str}", flush=True)
         else:
-            print(f"{timestamp}\t[{level_str}]\t{event}", flush=True)
+            print(f"{timestamp}{_separator}[{level_str}]{_separator}{event}", flush=True)
 
 
 def safe_print(*args, **kwargs) -> None:
