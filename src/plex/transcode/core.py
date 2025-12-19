@@ -6,10 +6,12 @@ attributes using ffprobe, determine if a video qualifies as 4K or HDR, and creat
 customized ffmpeg command lines for transcoding video content to the HEVC format.
 """
 import json
+import platform
 import re
 import subprocess
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List, Tuple
 
@@ -77,9 +79,56 @@ def _looks_hdr(info: VideoInfo) -> bool:
     return (info.color_primaries == "bt2020") or (info.color_transfer in {"smpte2084", "arib-std-b67"})
 
 
-def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool) -> List[str]:
+@lru_cache(maxsize=1)
+def _available_ffmpeg_encoders() -> List[str]:
+    """Return a cached list of available ffmpeg encoders."""
+    code, out, _ = system_util.run_cmd(["ffmpeg", "-hide_banner", "-encoders"])
+    if code != 0:
+        return []
+
+    encoders = []
+    for line in out.splitlines():
+        parts = line.split()
+        # Lines look like: " V..... hevc_videotoolbox ..."
+        if len(parts) >= 2 and parts[0].startswith("V"):
+            encoders.append(parts[1])
+        elif len(parts) >= 3 and parts[1].startswith("V"):
+            encoders.append(parts[2])
+    return encoders
+
+
+def _select_encoder(preferred: Optional[str] = None) -> str:
+    """Pick an ffmpeg HEVC encoder with platform-aware fallbacks."""
+    encoders = set(_available_ffmpeg_encoders())
+
+    if preferred:
+        if preferred in encoders:
+            return preferred
+        logger.safe_print(f"⚠️  Requested encoder '{preferred}' not found. Falling back automatically.")
+
+    system = platform.system()
+    candidates: List[str]
+    if system == "Darwin":
+        candidates = ["hevc_videotoolbox", "hevc_nvenc", "hevc_qsv", "libx265"]
+    elif system == "Windows":
+        candidates = ["hevc_nvenc", "hevc_qsv", "hevc_amf", "libx265"]
+    else:
+        candidates = ["hevc_nvenc", "hevc_qsv", "libx265"]
+
+    for encoder in candidates:
+        if encoder in encoders:
+            return encoder
+
+    # Last resort, use libx265 even if ffmpeg did not list encoders (will error clearly later)
+    return "libx265"
+
+
+def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool,
+                      preferred_encoder: Optional[str]) -> List[str]:
     """Build ffmpeg command for transcoding video to HEVC."""
     dst.parent.mkdir(parents=True, exist_ok=True)
+
+    encoder = _select_encoder(preferred_encoder)
 
     if _is_4k(info):
         v_bitrate = "20000k"
@@ -102,7 +151,7 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
         "-i", str(src),
         "-map", "0:v",
         "-map", "0:a",
-        "-c:v", "hevc_videotoolbox",
+        "-c:v", encoder,
         "-b:v", v_bitrate,
         "-maxrate", maxrate,
         "-bufsize", bufsize,
@@ -129,7 +178,8 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
 
 
 def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool = False,
-                    include_subs: bool = True, debug: bool = False, delete_source: bool = False) -> Tuple[
+                    include_subs: bool = True, debug: bool = False, delete_source: bool = False,
+                    video_encoder: Optional[str] = None) -> Tuple[
     int, str, str]:
     """
     Transcode a video file to HEVC with logging and progress updates.
@@ -146,7 +196,7 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
     Returns:
         Tuple of (exit_code, stdout, stderr)
     """
-    cmd = _build_ffmpeg_cmd(src, dst, info, force_audio_aac)
+    cmd = _build_ffmpeg_cmd(src, dst, info, force_audio_aac, video_encoder)
 
     logger.log("transcode.start", LogLevel.INFO,
                file=src.name,
@@ -159,6 +209,7 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                    source_codec=info.codec.upper(),
                    source_res=f"{info.width}x{info.height}",
                    target="HEVC (H.265)",
+                   encoder=cmd[cmd.index("-c:v") + 1],
                    quality='4K' if is_4k_video else '1080p',
                    hdr='HDR' if is_hdr_video else 'SDR',
                    audio='AAC' if force_audio_aac else 'Copy',

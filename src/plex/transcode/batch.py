@@ -43,7 +43,8 @@ def transcode_one(src: Path, src_root: Path, out_root: Path, args) -> Tuple[Path
 
     code, out, err = core.transcode_video(src, dst, info, force_audio_aac=force_audio_aac,
                                           include_subs=include_subs, debug=args.debug,
-                                          delete_source=args.delete_source)
+                                          delete_source=args.delete_source,
+                                          video_encoder=getattr(args, "video_encoder", None))
     if code != 0:
         # If subtitle copy caused failure, suggest retry without subs
         msg = f"{STATUS_FAIL} (ffmpeg code {code})"
