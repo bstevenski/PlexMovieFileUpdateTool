@@ -19,10 +19,15 @@ The CLI is non-interactive and safe for background runs.
 ## Prerequisites
 
 1. Python 3.9+
-2. FFmpeg with VideoToolbox (macOS):
-   ```bash
-   brew install ffmpeg
-   ```
+2. FFmpeg:
+   - **macOS (VideoToolbox hardware accel):**
+     ```bash
+     brew install ffmpeg
+     ```
+   - **Windows (software or GPU accel if available):**
+     ```powershell
+     choco install ffmpeg
+     ```
 3. TMDb API Key (free): set environment variable
    ```bash
    export TMDB_API_KEY="your_api_key_here"
@@ -68,6 +73,8 @@ positional:
 
 optional:
   --log-dir DIR         Directory for log files (default: ./logs)
+  --encoder ENCODER     FFmpeg encoder to use (e.g., hevc_videotoolbox, hevc_nvenc, libx265). Defaults to the best
+                        available encoder for your OS.
   --debug               Foreground mode + verbose logging
   --debug-keep-source   Keep source files after processing (no delete)
   --debug-no-overwrite  Do not overwrite existing outputs
@@ -81,6 +88,9 @@ Notes:
 - The previous `--only-avi` option has been removed.
 - HEVC skipping has been disabled by design; all files in `Queue` are treated as needing processing. The
   `--no-skip-hevc` flag is retained only for CLI compatibility.
+- Encoder selection is automatic: macOS prefers VideoToolbox, Windows tries GPU encoders (NVENC/Quick Sync/AMF)
+  when present, and any platform can fall back to software `libx265`. Use `--encoder` to force a specific
+  ffmpeg encoder if desired.
 
 ### Background mode
 

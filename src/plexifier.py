@@ -272,7 +272,7 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
 def main():
     parser = argparse.ArgumentParser(
         description="Plexify your files! Rename and transcode media files for use with a Plex Media Server. "
-                    "Uses TMDb API for metadata and Apple VideoToolbox for hardware transcoding.",
+                    "Uses TMDb API for metadata and hardware acceleration when available.",
         epilog="Example: plexifier /Users/briannastevenski/Plex"
     )
     parser.add_argument("root",
@@ -280,6 +280,8 @@ def main():
     parser.add_argument("--no-skip-hevc", action="store_true",
                         help="Transcode files already in HEVC (default: skip HEVC files)")
     parser.add_argument("--log-dir", help="Directory for log files (default: ./logs)")
+    parser.add_argument("--encoder", help="FFmpeg video encoder to use (e.g., hevc_videotoolbox, hevc_nvenc, libx265). "
+                                         "Defaults to best available for your OS.")
     parser.add_argument("--debug", action="store_true", help="Enable debug output and additional options")
     parser.add_argument("--debug-keep-source", action="store_true", help="[DEBUG] Keep source files after processing")
     parser.add_argument("--debug-no-overwrite", action="store_true", help="[DEBUG] Don't overwrite existing outputs")
@@ -440,6 +442,7 @@ def main():
                 dry_run=dry_run,
                 debug=args.debug,
                 delete_source=delete_source,
+                video_encoder=args.encoder,
             )
 
             futs = {
