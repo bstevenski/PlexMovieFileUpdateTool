@@ -13,64 +13,77 @@ help:
 
 standard-run:
 	@echo "Running plexifier in standard mode with all default settings..."
-	python3 src/plexifier.py ~/Plex
+	py src/plexifier.py media
 
 debug-run:
 	@echo "Running plexifier in debug/dry-run mode..."
-	python3 src/plexifier.py ~/Plex --debug --debug-dry-run
+	py src/plexifier.py media --debug --debug-dry-run
 
 ps:
 	@echo "Running plexifier and ffmpeg processes:"
-	@plex_pids=$$(pgrep -f '[p]lexifier' | tr '\n' ',' | sed 's/,$$//'); \
-	ffmpeg_pids=$$(pgrep -f '[f]fmpeg' | tr '\n' ',' | sed 's/,$$//'); \
-	if [ -z "$$plex_pids" ] && [ -z "$$ffmpeg_pids" ]; then \
-		echo "  No processes found"; \
-	else \
-		if [ -n "$$plex_pids" ]; then \
-			echo "\nPlexifier:"; \
-			ps -p $$plex_pids -o pid,etime,command | grep -v COMMAND; \
-		fi; \
-		if [ -n "$$ffmpeg_pids" ]; then \
-			echo "\nFFmpeg:"; \
-			ps -p $$ffmpeg_pids -o pid,etime,command | grep -v COMMAND; \
-		fi; \
-	fi
+	@powershell -Command "$$plex = Get-Process -Name *plexifier* -ErrorAction SilentlyContinue; \
+	$$ffmpeg = Get-Process -Name *ffmpeg* -ErrorAction SilentlyContinue; \
+	if (-not $$plex -and -not $$ffmpeg) { \
+		Write-Host '  No processes found'; \
+	} else { \
+		if ($$plex) { \
+			Write-Host '`nPlexifier:'; \
+			$$plex | Select-Object Id, StartTime, ProcessName | Format-Table -HideTableHeaders; \
+		}; \
+		if ($$ffmpeg) { \
+			Write-Host '`nFFmpeg:'; \
+			$$ffmpeg | Select-Object Id, StartTime, ProcessName | Format-Table -HideTableHeaders; \
+		}; \
+	}"
 
 trail-log:
 	@echo "Tailing latest log file..."
-	@latest=$$(ls -t logs/plexifier-*.log 2>/dev/null | head -1); \
-	if [ -n "$$latest" ]; then \
-		tail -f "$$latest"; \
-	else \
-		echo "No log files found in logs/"; \
-	fi
+	@powershell -Command "if (Test-Path logs) { \
+		$$latest = Get-ChildItem -Path logs -Filter plexifier-*.log | Sort-Object LastWriteTime -Descending | Select-Object -First 1; \
+		if ($$latest) { \
+			Get-Content -Path $$latest.FullName -Wait -Tail 20; \
+		} else { \
+			Write-Host 'No log files found in logs/'; \
+		} \
+	} else { \
+		Write-Host 'No logs directory found'; \
+	}"
 
 kill:
 	@echo "Stopping plexifier and ffmpeg processes..."
-	@plex_count=$$(pgrep -f '[p]lexifier' | wc -l | tr -d ' '); \
-	ffmpeg_count=$$(pgrep -f '[f]fmpeg' | wc -l | tr -d ' '); \
-	total=$$((plex_count + ffmpeg_count)); \
-	if [ "$$total" -gt 0 ]; then \
-		pkill -9 -f plexifier 2>/dev/null || true; \
-		pkill -9 -f ffmpeg 2>/dev/null || true; \
-		echo "✅ Killed $$total process(es) (plexifier: $$plex_count, ffmpeg: $$ffmpeg_count)"; \
-	else \
-		echo "No plexifier or ffmpeg processes found"; \
-	fi
+	@powershell -Command "$$plex = Get-Process -Name *plexifier* -ErrorAction SilentlyContinue; \
+	$$ffmpeg = Get-Process -Name *ffmpeg* -ErrorAction SilentlyContinue; \
+	$$total = 0; \
+	$$p_count = 0; \
+	$$f_count = 0; \
+	if ($$plex) { \
+		$$plex | Stop-Process -Force; \
+		$$p_count = if ($$plex -is [array]) { $$plex.Count } else { 1 }; \
+		$$total += $$p_count; \
+	}; \
+	if ($$ffmpeg) { \
+		$$ffmpeg | Stop-Process -Force; \
+		$$f_count = if ($$ffmpeg -is [array]) { $$ffmpeg.Count } else { 1 }; \
+		$$total += $$f_count; \
+	}; \
+	if ($$total -gt 0) { \
+		Write-Host \"✅ Killed $$total process(es) (plexifier: $$p_count, ffmpeg: $$f_count)\"; \
+	} else { \
+		Write-Host 'No plexifier or ffmpeg processes found'; \
+	}"
 
 clean-python:
 	@echo "Cleaning Python cache files..."
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-	@echo "✅ Python clean complete"
+	@powershell -Command "Get-ChildItem -Recurse -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; \
+	Get-ChildItem -Recurse -Include *.pyc, *.pyo | Remove-Item -Force -ErrorAction SilentlyContinue; \
+	Get-ChildItem -Recurse -Filter '*.egg-info' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; \
+	Get-ChildItem -Recurse -Filter '.pytest_cache' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; \
+	Write-Host '✅ Python clean complete'"
 
 clean-logs:
 	@echo "Cleaning log files..."
-	find . -type d -name "logs" -exec rm -rf {} + 2>/dev/null || true
-	@echo "✅ Log clean complete"
+	@powershell -Command "if (Test-Path logs) { Remove-Item -Path logs -Recurse -Force -ErrorAction SilentlyContinue }; \
+	Write-Host '✅ Log clean complete'"
 
 clean-all: clean-python clean-logs
 	@echo "✅ Full clean complete"
