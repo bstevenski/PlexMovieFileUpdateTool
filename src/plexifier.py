@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unified Plex media pipeline: Rename + Transcode in one step
 Combines plex_renamer.py and plex_transcoder.py functionality
 """
@@ -72,13 +72,13 @@ def _signal_handler(signum, frame):
         except (BrokenPipeError, OSError, UnicodeEncodeError):
             # Never let debug logging raise inside a signal handler
             pass
-    logger.safe_print("\n⚠️  Shutdown signal received. Stopping gracefully...")
-    logger.safe_print("⏳ Waiting for current transcoding jobs to complete...")
+    logger.safe_print("\nShutdown signal received. Stopping gracefully...")
+    logger.safe_print("Waiting for current transcoding jobs to complete...")
 
     if _executor:
         _executor.shutdown(wait=True, cancel_futures=False)
 
-    logger.safe_print("✅ Shutdown complete.")
+    logger.safe_print("Shutdown complete.")
     sys.exit(0)
 
 
@@ -95,7 +95,6 @@ class StagedFile:
     target: Path
     info: Optional[transcode.VideoInfo]
     force_audio_aac: bool
-    include_subs: bool
     is_copy_only: bool = False
     status: str = STATUS_STAGED
 
@@ -153,13 +152,13 @@ def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool
     if not info:
         if target.exists() and not overwrite:
             return file, target, f"{STATUS_SKIP} (already exists)", None
-        staged = StagedFile(file, target, None, False, False, is_copy_only=True)
+        staged = StagedFile(file, target, None, False, is_copy_only=True)
         return file, target, STATUS_STAGED_NO_INFO, staged
 
     if skip_hevc and info.codec.lower() == "hevc":
         if target.exists() and not overwrite:
             return file, target, f"{STATUS_SKIP} (already exists)", None
-        staged = StagedFile(file, target, info, False, False, is_copy_only=True)
+        staged = StagedFile(file, target, info, False, is_copy_only=True)
         return file, target, STATUS_STAGED_HEVC, staged
 
     # Check if target exists before transcoding
@@ -170,9 +169,7 @@ def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool
     # Auto-detect: Force AAC audio for AVI files (often have incompatible audio codecs)
     force_audio_aac = (file.suffix.lower() == ".avi")
     # Subtitles are excluded by default due to bitmap subtitle incompatibility
-    include_subs = False
-
-    staged = StagedFile(file, target, info, force_audio_aac, include_subs, is_copy_only=False)
+    staged = StagedFile(file, target, info, force_audio_aac, is_copy_only=False)
 
     if dry_run:
         return file, target, STATUS_DRY_RUN, staged
@@ -212,7 +209,6 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
     code, out, err = transcode.transcode_video(
         file, target, staged.info,
         force_audio_aac=staged.force_audio_aac,
-        include_subs=staged.include_subs,
         debug=debug
     )
 
@@ -243,9 +239,9 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
         try:
             manual_target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(file), str(manual_target))
-            msg = f"{STATUS_FAIL} (ffmpeg code {code}) — moved to Errors"
+            msg = f"{STATUS_FAIL} (ffmpeg code {code}) - moved to Errors"
         except (OSError, shutil.Error, PermissionError) as e:
-            msg = f"{STATUS_FAIL} (ffmpeg code {code}) — could not move to Errors: {e}"
+            msg = f"{STATUS_FAIL} (ffmpeg code {code}) - could not move to Errors: {e}"
 
         if "Subtitle" in err or "subtitles" in err or "codec" in err:
             msg += " (subtitle issue)"
@@ -279,7 +275,10 @@ def main():
                         help="Root directory containing Queue folder and where output folders will be created")
     parser.add_argument("--no-skip-hevc", action="store_true",
                         help="Transcode files already in HEVC (default: skip HEVC files)")
-    parser.add_argument("--log-dir", help="Directory for log files (default: ./logs)")
+    parser.add_argument("--log-dir", help="Directory for log files (default: ./logs or $PLEXIFIER_LOG_DIR)")
+    parser.add_argument("--log-file",
+                        help="Write console output to a file (in addition to the console); "
+                             "overrides --log-dir and $PLEXIFIER_LOG_FILE")
     parser.add_argument("--encoder", help="FFmpeg video encoder to use (e.g., hevc_videotoolbox, hevc_nvenc, libx265). "
                                          "Defaults to best available for your OS.")
     parser.add_argument("--debug", action="store_true", help="Enable debug output and additional options")
@@ -289,24 +288,70 @@ def main():
     parser.add_argument("--version", action="version", version=f"%(prog)s {plex.__version__}")
     args = parser.parse_args()
 
+    # Allow log configuration via environment variables.
+    env_log_dir = os.getenv("PLEXIFIER_LOG_DIR")
+    env_log_file = os.getenv("PLEXIFIER_LOG_FILE")
+    if not args.log_file and env_log_file:
+        args.log_file = env_log_file
+    if not args.log_dir and env_log_dir:
+        args.log_dir = env_log_dir
+
+    class _TeeStream:
+        def __init__(self, *streams):
+            self._streams = streams
+
+        def write(self, data):
+            for stream in self._streams:
+                stream.write(data)
+            return len(data)
+
+        def flush(self):
+            for stream in self._streams:
+                stream.flush()
+
+        def isatty(self):
+            return any(getattr(stream, "isatty", lambda: False)() for stream in self._streams)
+
     # Check if running as background child process
     is_background_child = os.environ.get("PLEXIFIER_BACKGROUND_MODE") == "1"
 
     # In debug mode, default to foreground; otherwise background (unless already a child process)
     run_foreground = args.debug or is_background_child
 
+    # Optional log file for foreground runs (Run/Debug console wraps long lines).
+    log_file_handle = None
+    log_path = None
+    if run_foreground:
+        if args.log_file:
+            log_path = Path(args.log_file).expanduser().resolve()
+        else:
+            log_dir = Path(args.log_dir) if args.log_dir else Path("./logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            log_path = (log_dir / f"plexifier-{timestamp}.log").resolve()
+
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file_handle = open(log_path, "a", encoding="utf-8", buffering=1)
+        sys.stdout = _TeeStream(sys.stdout, log_file_handle)
+        sys.stderr = _TeeStream(sys.stderr, log_file_handle)
+        atexit.register(log_file_handle.close)
+        print(f"Logging to: {log_path}")
+
     # Default to background mode unless in debug mode
     if not run_foreground:
         import subprocess
 
         # Create logs directory
-        log_dir = Path(args.log_dir) if args.log_dir else Path("./logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Generate unique log filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_file = log_dir / f"plexifier-{timestamp}.log"
-        log_path = log_file.resolve()
+        if args.log_file:
+            log_path = Path(args.log_file).expanduser().resolve()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            log_dir = Path(args.log_dir) if args.log_dir else Path("./logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            # Generate unique log filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            log_file = log_dir / f"plexifier-{timestamp}.log"
+            log_path = log_file.resolve()
 
         # Build command - remove --debug to run in background
         script_path = Path(__file__).resolve()
@@ -326,8 +371,8 @@ def main():
                 env=env
             )
 
-        print(f"✅ Started background process (PID: {process.pid})")
-        print(f"📝 Logging to: {log_path}")
+        print(f"Started background process (PID: {process.pid})")
+        print(f"Logging to: {log_path}")
         print(f"\nMonitor progress:")
         print(f"  OR make logs")
         print(f"\nCheck if running:")
@@ -438,7 +483,6 @@ def main():
                 overwrite=overwrite,
                 skip_hevc=skip_hevc,
                 force_audio_aac=False,
-                no_subs=False,
                 dry_run=dry_run,
                 debug=args.debug,
                 delete_source=delete_source,
@@ -456,7 +500,7 @@ def main():
             }
             for fut in as_completed(futs):
                 if _shutdown_requested:
-                    logger.safe_print("⚠️  Shutdown requested, stopping new jobs...")
+                    logger.safe_print("Shutdown requested, stopping new jobs...")
                     break
 
                 source_file, dest_file, status = fut.result()
@@ -580,9 +624,9 @@ def main():
         moved_staged = _prune_staged_move_strays_to_errors(staged_root, error_root)
         moved_queue = _prune_queue_keep_top_subdirs(queue_root, error_root)
         if moved_staged:
-            logger.safe_print(f"🧹 Moved {moved_staged} stray file(s) from Staged to Errors and removed Staged folder")
+            logger.safe_print(f"Moved {moved_staged} stray file(s) from Staged to Errors and removed Staged folder")
         if moved_queue:
-            logger.safe_print(f"🧹 Moved {moved_queue} stray file(s) from Queue to Errors and reset Queue structure")
+            logger.safe_print(f"Moved {moved_queue} stray file(s) from Queue to Errors and reset Queue structure")
 
     # Calculate runtime
     runtime_seconds = int(time.time() - start_time)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Functions to gather video information and generate ffmpeg commands for transcoding.
 
 This module provides functionality to extract details about a video file's codec and
@@ -104,7 +104,7 @@ def _select_encoder(preferred: Optional[str] = None) -> str:
     if preferred:
         if preferred in encoders:
             return preferred
-        logger.safe_print(f"⚠️  Requested encoder '{preferred}' not found. Falling back automatically.")
+        logger.safe_print(f"WARN: Requested encoder '{preferred}' not found. Falling back automatically.")
 
     system = platform.system()
     candidates: List[str]
@@ -149,8 +149,8 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
         "-loglevel", "error",
         "-stats",
         "-i", str(src),
-        "-map", "0:v",
-        "-map", "0:a",
+        "-map", "0:v:0",
+        "-map", "0:a?",
         "-c:v", encoder,
         "-b:v", v_bitrate,
         "-maxrate", maxrate,
@@ -178,7 +178,7 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
 
 
 def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool = False,
-                    include_subs: bool = True, debug: bool = False, delete_source: bool = False,
+                    debug: bool = False, delete_source: bool = False,
                     video_encoder: Optional[str] = None) -> Tuple[
     int, str, str]:
     """
@@ -189,7 +189,6 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
         dst: Destination video file path
         info: Video information from ffprobe
         force_audio_aac: Force AAC audio encoding (default: False, copies audio)
-        include_subs: Include subtitle streams (default: True)
         debug: Enable debug logging (default: False)
         delete_source: Delete source file after successful transcode (default: False)
 
@@ -212,8 +211,7 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                    encoder=cmd[cmd.index("-c:v") + 1],
                    quality='4K' if is_4k_video else '1080p',
                    hdr='HDR' if is_hdr_video else 'SDR',
-                   audio='AAC' if force_audio_aac else 'Copy',
-                   subtitles='Yes' if include_subs else 'No')
+                   audio='AAC' if force_audio_aac else 'Copy')
 
     # Run ffmpeg with progress monitoring
     process = subprocess.Popen(

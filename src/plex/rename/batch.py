@@ -66,7 +66,7 @@ def rename_files(root_folder: Path, stage_root: Path, error_root: Path, dry_run=
         if src_file.resolve() != target:
             proposed_renames.append((src_file, target))
 
-    for file in tqdm(all_files, desc="Analyzing files"):
+    for file in tqdm(all_files, desc="Analyzing files", file=sys.stdout, dynamic_ncols=True):
         season, episode = parser.parse_tv_filename(file.stem)
         if season is not None or episode is not None:
             date_str, date_year = (None, None)
@@ -99,7 +99,7 @@ def rename_files(root_folder: Path, stage_root: Path, error_root: Path, dry_run=
         print("\n🧪 Dry-run mode: no changes will be made.")
         sys.exit(0)
 
-    for old, new in tqdm(proposed_renames, desc="Renaming files"):
+    for old, new in tqdm(proposed_renames, desc="Renaming files", file=sys.stdout, dynamic_ncols=True):
         new.parent.mkdir(parents=True, exist_ok=True)
         try:
             shutil.move(str(old), str(new))

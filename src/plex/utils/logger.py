@@ -45,8 +45,9 @@ def _format_kv(data: Dict[str, Any]) -> str:
     parts = []
     for key, value in data.items():
         if isinstance(value, str):
-            # Escape quotes and wrap in quotes
-            escaped = value.replace('"', '\\"')
+            # Escape quotes and newlines to keep log entries single-line.
+            escaped = value.replace("\r", "\\r").replace("\n", "\\n")
+            escaped = escaped.replace('"', '\\"')
             parts.append(f'{key}="{escaped}"')
         elif value is None:
             parts.append(f'{key}=null')
@@ -55,6 +56,19 @@ def _format_kv(data: Dict[str, Any]) -> str:
         else:
             parts.append(f'{key}={value}')
     return _separator.join(parts)
+
+
+def _write_line(text: str) -> None:
+    try:
+        from tqdm import tqdm
+    except Exception:
+        print(text, flush=True)
+        return
+
+    try:
+        tqdm.write(text)
+    except Exception:
+        print(text, flush=True)
 
 
 def _should_log(level: LogLevel) -> bool:
@@ -82,11 +96,12 @@ def log(event: str, level: LogLevel = LogLevel.INFO, **kwargs) -> None:
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         level_str = level.name
         kv_str = _format_kv(kwargs) if kwargs else ""
+        header = f"{timestamp}{_separator}[{level_str}]{_separator}{event}"
 
         if kv_str:
-            print(f"{timestamp}{_separator}[{level_str}]{_separator}{event}{_separator}{kv_str}", flush=True)
+            _write_line(f"{header}{_separator}{kv_str}")
         else:
-            print(f"{timestamp}{_separator}[{level_str}]{_separator}{event}", flush=True)
+            _write_line(header)
 
 
 def safe_print(*args, **kwargs) -> None:

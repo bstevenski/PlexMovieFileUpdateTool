@@ -39,23 +39,27 @@ def rename_tv_file(file: Path, season: int, episode: int, date_str: Optional[str
     - file (Path): Path object referencing the original media file.
     - season (int): Season number for the episode.
     - episode (int): Episode number for the episode.
-    - date_str (Optional[str]): Optional date string used for date-based episodes (e.g. daily shows).
-    - date_year (Optional[int]): Optional year accompanying `date_str` to construct folder names.
+    - date_str (Optional[str]): Optional date string used for date-based episodes (e.g., daily shows).
+    - Date_year (Optional[int]): Optional year accompanying `date_str` to construct folder names.
 
     Returns:
     Tuple[Path, bool, bool]:
-    - new_path (Path): Proposed new path (folder + filename) for the media file. May be `Path(file.name)` if not renamable.
+    - New_path (Path): Proposed new path (folder and filename) for the media file. May be `Path(file.name)` if not renamable.
     - matched_tmdb (bool): True if a TMDb match was found and used; False if fallbacks were used.
     - is_renamable (bool): True if the file can be renamed (fallbacks allowed); False if not enough information to rename.
     """
     search_title = parser.clean_search_title(file.stem, date_str)
 
-    logger.log("rename.lookup", LogLevel.DEBUG,
-               file=file.name,
-               type="tv",
-               season=f"S{season:02d}",
-               episode=f"E{episode:02d}",
-               search_term=search_title)
+    log_fields = {
+        "file": file.name,
+        "type": "tv",
+        "search_term": search_title,
+    }
+    if season is not None:
+        log_fields["season"] = f"S{season:02d}"
+    if episode is not None:
+        log_fields["episode"] = f"E{episode:02d}"
+    logger.log("rename.lookup", LogLevel.DEBUG, **log_fields)
 
     tmdb_data = tmdb.search_tmdb_tv(search_title)
     series_info = {
@@ -80,6 +84,13 @@ def rename_tv_file(file: Path, season: int, episode: int, date_str: Optional[str
             return Path(file.name), False, False
         return _build_tv_fallback(file, base_title, guessed_year, season, episode, date_str, date_year)
 
+    if date_str:
+        folder_year = str(date_year) if date_year else series_info["year"]
+        new_folder = formatter.build_folder_name(series_info["title"], folder_year,
+                                                 series_info["id"]) / f"Season {date_year or '01'}"
+        new_filename = f"{series_info['title']} - {date_str}{file.suffix}"
+        return new_folder / new_filename, True, True
+
     episode_title = _get_episode_title(file, series_info["id"], season, episode, date_str)
     new_folder = formatter.build_folder_name(series_info["title"], series_info["year"],
                                              series_info["id"]) / f"Season {season:02d}"
@@ -93,7 +104,7 @@ def rename_movie_file(file: Path) -> Tuple[Path, bool, bool]:
 
     This function attempts to find movie metadata via TMDb and builds a
     destination path and filename using the project's formatter and
-    sanitization utilities. If a TMDb match is found the resulting folder
+    sanitization utilities. If a TMDb match is found, the resulting folder
     and filename include the TMDb id; if not, sensible fallbacks derived
     from the original filename are used when possible.
 
@@ -153,7 +164,7 @@ def _build_tv_fallback(file, base_title, guessed_year, season, episode, date_str
     - guessed_year (str|None): Guessed year derived from the filename, if any.
     - season (int): Season number.
     - episode (int): Episode number.
-    - date_str (str|None): If present, treat episode as a date-based episode (e.g. daily shows).
+    - date_str (str|None): If present, treat the episode as a date-based episode (e.g. daily shows).
     - date_year (int|None): Year associated with `date_str` for folder naming.
 
     Returns:
@@ -191,7 +202,7 @@ def _get_episode_title(file, series_id, season, episode, date_str):
     - date_str (str|None): Optional date string for date-based episodes.
 
     Returns:
-    - episode_title (str): The chosen episode title (may be the date string or a token).
+    - episode_title (str): The chosen episode title (maybe the date string or a token).
     """
     if date_str:
         return date_str

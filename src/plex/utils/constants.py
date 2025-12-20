@@ -9,6 +9,14 @@ organization. A debug setting is also included for troubleshooting processes.
 import os
 import re
 
+try:
+    from dotenv import load_dotenv
+except Exception:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
 # Content type constants
 CONTENT_TYPE_MOVIES = "Movies"
 CONTENT_TYPE_TV = "TV Shows"

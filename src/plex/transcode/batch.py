@@ -1,4 +1,4 @@
-"""
+﻿"""
 This module provides functionality for video transcoding and recursive discovery
 of video files in specified directories.
 
@@ -36,20 +36,15 @@ def transcode_one(src: Path, src_root: Path, out_root: Path, args) -> Tuple[Path
     # Always process HEVC too; queue should contain files that need processing
 
     force_audio_aac = getattr(args, "force_audio_aac", False) or (src.suffix.lower() == ".avi")
-    include_subs = not getattr(args, "no_subs", False)
-
     if getattr(args, "dry_run", False):
         return src, dst, STATUS_DRY_RUN
 
     code, out, err = core.transcode_video(src, dst, info, force_audio_aac=force_audio_aac,
-                                          include_subs=include_subs, debug=args.debug,
+                                          debug=args.debug,
                                           delete_source=args.delete_source,
                                           video_encoder=getattr(args, "video_encoder", None))
     if code != 0:
-        # If subtitle copy caused failure, suggest retry without subs
         msg = f"{STATUS_FAIL} (ffmpeg code {code})"
-        if "Subtitle" in err or "subtitles" in err or "codec" in err:
-            msg += " — (maybe subtitle stream not compatible with MP4; try --no-subs)"
         return src, None, msg
 
     return src, dst, STATUS_OK

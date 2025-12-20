@@ -13,11 +13,11 @@ help:
 
 standard-run:
 	@echo "Running plexifier in standard mode with all default settings..."
-	py src/plexifier.py media
+	py src/plexifier.py ../media
 
 debug-run:
 	@echo "Running plexifier in debug/dry-run mode..."
-	py src/plexifier.py media --debug --debug-dry-run
+	py src/plexifier.py ../media --debug --debug-dry-run
 
 ps:
 	@echo "Running plexifier and ffmpeg processes:"
