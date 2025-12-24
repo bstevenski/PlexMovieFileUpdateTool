@@ -1,7 +1,8 @@
-﻿"""
+"""
 Unified Plex media pipeline: Rename + Transcode in one step
 Combines plex_renamer.py and plex_transcoder.py functionality
 """
+
 import argparse
 import atexit
 import os
@@ -13,38 +14,35 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
 
-import plex
+import plex as plex_module
 from plex import rename, transcode
-from plex.utils import logger, system_util, LogLevel, time_util
+from plex.utils import LogLevel, logger, system_util, time_util
 from plex.utils.constants import (
-    QUEUE_FOLDER,
-    ERROR_FOLDER,
-    STAGED_FOLDER,
     COMPLETED_FOLDER,
-    CONTENT_TYPE_TV,
     CONTENT_TYPE_MOVIES,
+    CONTENT_TYPE_TV,
+    ERROR_FOLDER,
+    QUEUE_FOLDER,
+    STAGED_FOLDER,
+    STATUS_COPY,
+    STATUS_DRY_RUN,
+    STATUS_FAIL,
+    STATUS_MANUAL,
+    STATUS_MOVED,
+    STATUS_OK,
+    STATUS_SKIP,
     STATUS_STAGED,
     STATUS_STAGED_HEVC,
     STATUS_STAGED_NO_INFO,
-    STATUS_SKIP,
-    STATUS_MANUAL,
-    STATUS_FAIL,
-    STATUS_DRY_RUN,
-    STATUS_MOVED,
-    STATUS_COPY,
-    STATUS_OK,
-    DEBUG,
-    WORKERS, VIDEO_EXTENSIONS
+    VIDEO_EXTENSIONS,
+    WORKERS,
 )
 from plex.utils.time_util import get_eta_from_start
 
-in_debug_mode = DEBUG
-
 # Global executor reference for graceful shutdown
 # Executor used for background transcoding tasks
-_executor: Optional[ThreadPoolExecutor] = None
+_executor: ThreadPoolExecutor | None = None
 _shutdown_requested: bool = False
 
 
@@ -53,7 +51,7 @@ def _signal_handler(signum, frame):
     global _shutdown_requested
     _shutdown_requested = True
     # In debug mode, log details about the received signal and (lightweight) frame info
-    if getattr(plex, "DEBUG", False):
+    if getattr(plex_module, "DEBUG", False):
         try:
             sig_name = signal.Signals(signum).name
         except ValueError:
@@ -91,17 +89,18 @@ def _cleanup():
 @dataclass
 class StagedFile:
     """Represents a file that has been staged and is ready for transcoding."""
+
     source: Path
     target: Path
-    info: Optional[transcode.VideoInfo]
+    info: transcode.VideoInfo | None
     force_audio_aac: bool
     is_copy_only: bool = False
     status: str = STATUS_STAGED
 
 
-def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool, overwrite: bool, dry_run: bool) -> \
-        Tuple[
-            Path, Optional[Path], str, Optional[StagedFile]]:
+def stage_file(
+        file: Path, output_root: Path, manual_root: Path, skip_hevc: bool, overwrite: bool, dry_run: bool
+) -> tuple[Path, Path | None, str, StagedFile | None]:
     """Stage a file: determine target path and check if transcoding is needed. Returns (source, target, status, staged_file)."""
 
     # Determine new name and path
@@ -113,7 +112,7 @@ def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool
     base_dest = None
     subdir = None
 
-    if is_tv:
+    if is_tv and season is not None and episode is not None:
         result = rename.rename_tv_file(file, season, episode, date_str=date_str, date_year=date_year)
         if result:
             new_file_path, matched, renamable = result
@@ -167,7 +166,7 @@ def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool
 
     # Needs transcoding
     # Auto-detect: Force AAC audio for AVI files (often have incompatible audio codecs)
-    force_audio_aac = (file.suffix.lower() == ".avi")
+    force_audio_aac = file.suffix.lower() == ".avi"
     # Subtitles are excluded by default due to bitmap subtitle incompatibility
     staged = StagedFile(file, target, info, force_audio_aac, is_copy_only=False)
 
@@ -177,8 +176,9 @@ def stage_file(file: Path, output_root: Path, manual_root: Path, skip_hevc: bool
     return file, target, STATUS_STAGED, staged
 
 
-def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug: bool, source_root: Path) -> Tuple[
-    Path, Optional[Path], str]:
+def transcode_file(
+        staged: StagedFile, delete_source: bool, dry_run: bool, debug: bool, source_root: Path
+) -> tuple[Path, Path | None, str]:
     """Transcode a staged file."""
     file = staged.source
     target = staged.target
@@ -207,9 +207,7 @@ def transcode_file(staged: StagedFile, delete_source: bool, dry_run: bool, debug
         return file, None, f"{STATUS_FAIL} (no video info)"
 
     code, out, err = transcode.transcode_video(
-        file, target, staged.info,
-        force_audio_aac=staged.force_audio_aac,
-        debug=debug
+        file, target, staged.info, force_audio_aac=staged.force_audio_aac, debug=debug
     )
 
     if code != 0:
@@ -269,23 +267,27 @@ def main():
     parser = argparse.ArgumentParser(
         description="Plexify your files! Rename and transcode media files for use with a Plex Media Server. "
                     "Uses TMDb API for metadata and hardware acceleration when available.",
-        epilog="Example: plexifier /Users/briannastevenski/Plex"
+        epilog="Example: plexifier /Users/briannastevenski/Plex",
     )
-    parser.add_argument("root",
-                        help="Root directory containing Queue folder and where output folders will be created")
-    parser.add_argument("--no-skip-hevc", action="store_true",
-                        help="Transcode files already in HEVC (default: skip HEVC files)")
+    parser.add_argument("root", help="Root directory containing Queue folder and where output folders will be created")
+    parser.add_argument(
+        "--no-skip-hevc", action="store_true", help="Transcode files already in HEVC (default: skip HEVC files)"
+    )
     parser.add_argument("--log-dir", help="Directory for log files (default: ./logs or $PLEXIFIER_LOG_DIR)")
-    parser.add_argument("--log-file",
-                        help="Write console output to a file (in addition to the console); "
-                             "overrides --log-dir and $PLEXIFIER_LOG_FILE")
-    parser.add_argument("--encoder", help="FFmpeg video encoder to use (e.g., hevc_videotoolbox, hevc_nvenc, libx265). "
-                                         "Defaults to best available for your OS.")
+    parser.add_argument(
+        "--log-file",
+        help="Write console output to a file (in addition to the console); overrides --log-dir and $PLEXIFIER_LOG_FILE",
+    )
+    parser.add_argument(
+        "--encoder",
+        help="FFmpeg video encoder to use (e.g., hevc_videotoolbox, hevc_nvenc, libx265). "
+             "Defaults to best available for your OS.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug output and additional options")
     parser.add_argument("--debug-keep-source", action="store_true", help="[DEBUG] Keep source files after processing")
     parser.add_argument("--debug-no-overwrite", action="store_true", help="[DEBUG] Don't overwrite existing outputs")
     parser.add_argument("--debug-dry-run", action="store_true", help="[DEBUG] Preview without processing")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {plex.__version__}")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {plex_module.__version__}")
     args = parser.parse_args()
 
     # Allow log configuration via environment variables.
@@ -319,8 +321,6 @@ def main():
     run_foreground = args.debug or is_background_child
 
     # Optional log file for foreground runs (Run/Debug console wraps long lines).
-    log_file_handle = None
-    log_path = None
     if run_foreground:
         if args.log_file:
             log_path = Path(args.log_file).expanduser().resolve()
@@ -368,20 +368,20 @@ def main():
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,  # Detach from parent
-                env=env
+                env=env,
             )
 
         print(f"Started background process (PID: {process.pid})")
         print(f"Logging to: {log_path}")
-        print(f"\nMonitor progress:")
-        print(f"  OR make logs")
-        print(f"\nCheck if running:")
-        print(f"  make ps")
-        print(f"\nStop process:")
-        print(f"  make kill")
+        print("\nMonitor progress:")
+        print("  OR make logs")
+        print("\nCheck if running:")
+        print("  make ps")
+        print("\nStop process:")
+        print("  make kill")
         return
 
-    plex.DEBUG = args.debug
+    plex_module.DEBUG = args.debug
 
     # Set log level based on debug mode
     if args.debug:
@@ -421,11 +421,24 @@ def main():
     error_root.mkdir(parents=True, exist_ok=True)
     completed_root.mkdir(parents=True, exist_ok=True)
 
-    # Find all video files
+    # Find all video files in Queue
     all_files = [f for f in queue_root.rglob("*") if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS]
 
-    if not all_files:
-        logger.log("startup.complete", LogLevel.INFO, msg="No video files found", source=str(queue_root))
+    # Check if there are staged files from a previous run
+    staged_files_exist = False
+    staged_video_files = []
+    if staged_root.exists():
+        staged_video_files = [f for f in staged_root.rglob("*") if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS]
+        staged_files_exist = len(staged_video_files) > 0
+
+    if not all_files and not staged_files_exist:
+        logger.log(
+            "startup.complete",
+            LogLevel.INFO,
+            msg="No video files found in Queue or Staged folders",
+            queue=str(queue_root),
+            staged=str(staged_root),
+        )
         return
 
     skip_hevc = not args.no_skip_hevc
@@ -435,37 +448,50 @@ def main():
 
     start_time = time.time()
 
-    logger.log("plexifier.start", LogLevel.INFO,
-               pid=os.getpid(),
-               files_found=total_files_count,
-               source=str(queue_root),
-               staging=str(staged_root),
-               completed=str(root_dir / COMPLETED_FOLDER),
-               errors=str(error_root),
-               WORKERS=WORKERS,
-               skip_hevc=skip_hevc,
-               delete_source=delete_source,
-               dry_run=dry_run,
-               eta=eta_str)
+    # Check if we're resuming from staged files (Queue is empty but Staged has files)
+    is_resuming = len(all_files) == 0 and staged_files_exist
+
+    if is_resuming:
+        logger.safe_print(f"\n⏸️  Resuming from previous run. Processing {len(staged_video_files)} staged file(s)...\n")
+
+    logger.log(
+        "plexifier.start",
+        LogLevel.INFO,
+        pid=os.getpid(),
+        files_found=total_files_count,
+        source=str(queue_root),
+        staging=str(staged_root),
+        completed=str(root_dir / COMPLETED_FOLDER),
+        errors=str(error_root),
+        WORKERS=WORKERS,
+        skip_hevc=skip_hevc,
+        delete_source=delete_source,
+        dry_run=dry_run,
+        eta=eta_str,
+        resuming=is_resuming,
+    )
 
     # Phase 1: Stage all files by renaming/moving from Queue -> Staged using batch API
-    logger.safe_print("\n=== Phase 1: Staging files ===")
-    results = []
+    if all_files:
+        logger.safe_print("\n=== Phase 1: Staging files ===")
+        try:
+            # Use batch renamer: scan Queue, compute Plex-friendly paths, move to Staged; non-renamables -> Errors
+            # Non-interactive; honors dry_run.
+            rename.rename_files(queue_root, stage_root=staged_root, error_root=error_root, dry_run=dry_run)
+        except SystemExit:
+            # rename_files may sys.exit(0) on dry-run or no files; continue flow safely
+            pass
+    else:
+        logger.safe_print("\n=== Phase 1: Staging files ===")
+        logger.safe_print("ℹ️  No new files in Queue. Skipping staging phase.")
 
-    try:
-        # Use batch renamer: scan Queue, compute Plex-friendly paths, move to Staged; non-renamables -> Errors
-        # Non-interactive; honors dry_run.
-        rename.rename_files(queue_root, stage_root=staged_root, error_root=error_root, dry_run=dry_run)
-    except SystemExit:
-        # rename_files may sys.exit(0) on dry-run or no files; continue flow safely
-        pass
+    results = []
 
     # After staging, discover staged files for transcoding
     staged_file_paths = transcode.iter_video_files(staged_root)
     staged_count = len(staged_file_paths)
 
-    logger.safe_print(
-        f"\nStaging complete: {staged_count} files ready for transcoding")
+    logger.safe_print(f"\nStaging complete: {staged_count} files ready for transcoding")
 
     if not staged_file_paths:
         logger.safe_print("No files need transcoding.")
@@ -479,7 +505,8 @@ def main():
         try:
             # Build adapter for transcode.batch.transcode_one expected args
             from types import SimpleNamespace
-            _Args = SimpleNamespace(
+
+            _args = SimpleNamespace(
                 overwrite=overwrite,
                 skip_hevc=skip_hevc,
                 force_audio_aac=False,
@@ -495,8 +522,9 @@ def main():
                     src,
                     staged_root,
                     completed_root,
-                    _Args,
-                ): src for src in staged_file_paths
+                    _args,
+                ): src
+                for src in staged_file_paths
             }
             for fut in as_completed(futs):
                 if _shutdown_requested:
@@ -551,17 +579,19 @@ def main():
                     progress_pct = (transcoded_count / staged_count) * 100
                     elapsed_seconds = time.time() - start_time
                     eta_str = time_util.get_eta_total(transcoded_count, staged_count, elapsed_seconds)
-                    logger.log("plexifier.progress", LogLevel.INFO,
-                               completed=transcoded_count,
-                               total=staged_count,
-                               pct=round(progress_pct, 1),
-                               eta=eta_str)
+                    logger.log(
+                        "plexifier.progress",
+                        LogLevel.INFO,
+                        completed=transcoded_count,
+                        total=staged_count,
+                        pct=round(progress_pct, 1),
+                        eta=eta_str,
+                    )
         finally:
             _executor.shutdown(wait=True)
             _executor = None
 
-    ok = sum(1 for _, _, s in results if
-             STATUS_OK in s or STATUS_COPY in s or STATUS_MOVED in s)
+    ok = sum(1 for _, _, s in results if STATUS_OK in s or STATUS_COPY in s or STATUS_MOVED in s)
     skip = sum(1 for _, _, s in results if s.startswith(STATUS_SKIP))
     manual = sum(1 for _, _, s in results if s.startswith(STATUS_MANUAL))
     fail = sum(1 for _, _, s in results if s.startswith(STATUS_FAIL))
@@ -635,16 +665,19 @@ def main():
     runtime_secs = runtime_seconds % 60
     runtime_str = f"{runtime_hours:02d}:{runtime_mins:02d}:{runtime_secs:02d}.000"
 
-    logger.log("plexifier.end", LogLevel.INFO,
-               pid=os.getpid(),
-               runtime=runtime_str,
-               completed=str(root_dir / 'Completed'),
-               errors=str(error_root),
-               ok=ok,
-               manual=manual,
-               skip=skip,
-               fail=fail,
-               dry_run=dry)
+    logger.log(
+        "plexifier.end",
+        LogLevel.INFO,
+        pid=os.getpid(),
+        runtime=runtime_str,
+        completed=str(root_dir / "Completed"),
+        errors=str(error_root),
+        ok=ok,
+        manual=manual,
+        skip=skip,
+        fail=fail,
+        dry_run=dry,
+    )
 
 
 if __name__ == "__main__":

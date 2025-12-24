@@ -1,15 +1,17 @@
 """TMDb API integration for movie and TV metadata lookup."""
+
 import threading
-import typing
 
 import requests
 
-from . import constants
-from . import logger
+from . import constants, logger
 
-# Validate API key
-if not constants.TMDB_API_KEY:
-    raise ValueError("TMDB_API_KEY environment variable is not set!")
+
+def _validate_api_key():
+    """Validate that TMDB API key is available."""
+    if not constants.TMDB_API_KEY:
+        raise ValueError("TMDB_API_KEY environment variable is not set!")
+
 
 # Thread-safe caching
 _tmdb_cache = {}
@@ -32,12 +34,14 @@ def _make_tmdb_request(url: str, params: dict, error_context: str):
     return None
 
 
-def search_tmdb_movie(title: str, year: typing.Optional[int] = None) -> typing.Optional[dict]:
+def search_tmdb_movie(title: str, year: int | None = None) -> dict | None:
     """
     Search TMDb for a movie.
     Returns movie data including TMDb ID, title, and release year or None if not found.
     Uses in-memory cache to avoid redundant API calls.
     """
+    _validate_api_key()
+
     # Check cache first
     cache_key = f"movie:{title}:{year}"
     with _cache_lock:
@@ -45,11 +49,7 @@ def search_tmdb_movie(title: str, year: typing.Optional[int] = None) -> typing.O
             return _tmdb_cache[cache_key]
 
     url = f"{constants.TMDB_BASE_URL}/search/movie"
-    params = {
-        "api_key": constants.TMDB_API_KEY,
-        "query": title,
-        "include_adult": "false"
-    }
+    params = {"api_key": constants.TMDB_API_KEY, "query": title, "include_adult": "false"}
     if year:
         params["year"] = str(year)
 
@@ -70,7 +70,7 @@ def search_tmdb_movie(title: str, year: typing.Optional[int] = None) -> typing.O
         "tmdb_id": movie.get("id"),
         "title": movie.get("title"),
         "year": year_val,
-        "original_title": movie.get("original_title")
+        "original_title": movie.get("original_title"),
     }
 
     # Cache the result
@@ -80,12 +80,14 @@ def search_tmdb_movie(title: str, year: typing.Optional[int] = None) -> typing.O
     return result
 
 
-def search_tmdb_tv(title: str, year: typing.Optional[int] = None) -> typing.Optional[dict]:
+def search_tmdb_tv(title: str, year: int | None = None) -> dict | None:
     """
     Search TMDb for a TV series.
     Returns series data including TMDb ID, name, and year range or None if not found.
     Uses in-memory cache to avoid redundant API calls.
     """
+    _validate_api_key()
+
     # Check cache first
     cache_key = f"tv:{title}:{year}"
     with _cache_lock:
@@ -93,11 +95,7 @@ def search_tmdb_tv(title: str, year: typing.Optional[int] = None) -> typing.Opti
             return _tmdb_cache[cache_key]
 
     url = f"{constants.TMDB_BASE_URL}/search/tv"
-    params = {
-        "api_key": constants.TMDB_API_KEY,
-        "query": title,
-        "include_adult": "false"
-    }
+    params = {"api_key": constants.TMDB_API_KEY, "query": title, "include_adult": "false"}
     if year:
         params["first_air_date_year"] = str(year)
 
@@ -141,7 +139,7 @@ def search_tmdb_tv(title: str, year: typing.Optional[int] = None) -> typing.Opti
             "tmdb_id": tmdb_id,
             "name": details.get("name"),
             "year": year_str,
-            "original_name": details.get("original_name")
+            "original_name": details.get("original_name"),
         }
     else:
         # Fallback if details fetch fails
@@ -151,7 +149,7 @@ def search_tmdb_tv(title: str, year: typing.Optional[int] = None) -> typing.Opti
             "tmdb_id": tmdb_id,
             "name": show.get("name"),
             "year": year_val,
-            "original_name": show.get("original_name")
+            "original_name": show.get("original_name"),
         }
 
     # Cache the result
@@ -165,6 +163,8 @@ def get_tmdb_episode(tmdb_id: int, season: int, episode: int):
     """
     Get episode details from TMDb by show ID, season, and episode number.
     """
+    _validate_api_key()
+
     url = f"{constants.TMDB_BASE_URL}/tv/{tmdb_id}/season/{season}/episode/{episode}"
     params = {"api_key": constants.TMDB_API_KEY}
 
@@ -172,8 +172,4 @@ def get_tmdb_episode(tmdb_id: int, season: int, episode: int):
     if not data:
         return None
 
-    return {
-        "name": data.get("name"),
-        "season": season,
-        "episode": episode
-    }
+    return {"name": data.get("name"), "season": season, "episode": episode}

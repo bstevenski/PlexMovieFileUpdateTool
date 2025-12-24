@@ -20,14 +20,14 @@ The CLI is non-interactive and safe for background runs.
 
 1. Python 3.9+
 2. FFmpeg:
-   - **macOS (VideoToolbox hardware accel):**
-     ```bash
-     brew install ffmpeg
-     ```
-   - **Windows (software or GPU accel if available):**
-     ```powershell
-     choco install ffmpeg
-     ```
+    - **macOS (VideoToolbox hardware accel):**
+      ```bash
+      brew install ffmpeg
+      ```
+    - **Windows (software or GPU accel if available):**
+      ```powershell
+      choco install ffmpeg
+      ```
 3. TMDb API Key (free): set environment variable
    ```bash
    export TMDB_API_KEY="your_api_key_here"

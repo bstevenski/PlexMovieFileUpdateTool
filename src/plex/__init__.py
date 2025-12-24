@@ -13,8 +13,10 @@ The module is organized into several categories:
 - Utility functions for system commands and file handling.
 - Video transcoding capabilities to ensure media compatibility with supported devices.
 """
+
 __version__ = "1.0.0"
 
-__all__ = [
-    "__version__"
-]
+# Debug flag for controlling verbose output
+DEBUG: bool = False
+
+__all__ = ["__version__", "DEBUG"]

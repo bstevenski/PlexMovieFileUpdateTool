@@ -6,6 +6,7 @@ includes default extensions for video files, various status codes for message
 representation, content type categories, and folder naming conventions for
 organization. A debug setting is also included for troubleshooting processes.
 """
+
 import os
 import re
 
@@ -22,18 +23,18 @@ CONTENT_TYPE_MOVIES = "Movies"
 CONTENT_TYPE_TV = "TV Shows"
 
 # Folder name constants
-QUEUE_FOLDER = "Queue"
-ERROR_FOLDER = "Errors"
-STAGED_FOLDER = "Staged"
-COMPLETED_FOLDER = "Completed"
+QUEUE_FOLDER = "../ready-to-process"
+ERROR_FOLDER = "./media-processing/errored-files"
+STAGED_FOLDER = "./media-processing/ready-to-transcode"
+COMPLETED_FOLDER = "../ready-for-plex"
 
 # Run settings
 DEBUG = False
 WORKERS = 4
 
 # Estimated processing parameters
-EST_AVG_SPEED = 2.0  # Estimated average speed multiplier for processing
-EST_AVG_VIDEO_LENGTH = 3600  # Estimated average video length in seconds (1 hour)
+EST_AVG_SPEED = 1.5  # Estimated average speed multiplier for processing (45min -> ~30min)
+EST_AVG_VIDEO_LENGTH = 2700  # Estimated average video length in seconds (45 minutes)
 
 # Accepted video file extensions
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".mov"}

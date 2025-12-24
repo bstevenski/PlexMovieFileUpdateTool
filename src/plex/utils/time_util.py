@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from plex.utils.constants import EST_AVG_VIDEO_LENGTH, EST_AVG_SPEED, WORKERS
+from plex.utils.constants import EST_AVG_SPEED, EST_AVG_VIDEO_LENGTH, WORKERS
 
 
 def get_eta_single_file(video_duration, speed_val, elapsed_seconds):
@@ -21,8 +21,7 @@ def get_eta_from_start(file_count):
 
 
 def _get_eta_string(time_in_seconds):
-    completion_time = (datetime.now(timezone.utc) + timedelta(
-        seconds=time_in_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    completion_time = (datetime.now(timezone.utc) + timedelta(seconds=time_in_seconds)).strftime("%Y-%m-%d %H:%M:%S")
 
     eta_hours = int(time_in_seconds // 3600)
     eta_mins = int((time_in_seconds % 3600) // 60)

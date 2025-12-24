@@ -12,8 +12,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from plex.rename import parser, core
-from plex.utils import CONTENT_TYPE_TV, CONTENT_TYPE_MOVIES, VIDEO_EXTENSIONS
+from plex.rename import core, parser
+from plex.utils import CONTENT_TYPE_MOVIES, CONTENT_TYPE_TV, VIDEO_EXTENSIONS
 
 
 def rename_files(root_folder: Path, stage_root: Path, error_root: Path, dry_run=False):

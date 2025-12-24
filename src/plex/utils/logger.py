@@ -4,13 +4,14 @@ Provides structured logging with thread-safety and log levels.
 This module provides a structured logging system with UTC timestamps, log levels,
 and key-value pair formatting for better log parsing and analysis.
 """
+
 import threading
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, Any
+from typing import Any
 
 _print_lock = threading.Lock()
-_log_level = None
+
 _worker_id_map = {}
 _worker_counter = 0
 _worker_lock = threading.Lock()
@@ -19,6 +20,7 @@ _separator = " | "
 
 class LogLevel(Enum):
     """Log level enumeration."""
+
     TRACE = 0
     DEBUG = 1
     INFO = 2
@@ -40,7 +42,7 @@ def get_log_level() -> LogLevel:
     return _current_level
 
 
-def _format_kv(data: Dict[str, Any]) -> str:
+def _format_kv(data: dict[str, Any]) -> str:
     """Format key-value pairs for logging."""
     parts = []
     for key, value in data.items():
@@ -50,11 +52,11 @@ def _format_kv(data: Dict[str, Any]) -> str:
             escaped = escaped.replace('"', '\\"')
             parts.append(f'{key}="{escaped}"')
         elif value is None:
-            parts.append(f'{key}=null')
+            parts.append(f"{key}=null")
         elif isinstance(value, bool):
-            parts.append(f'{key}={str(value).lower()}')
+            parts.append(f"{key}={str(value).lower()}")
         else:
-            parts.append(f'{key}={value}')
+            parts.append(f"{key}={value}")
     return _separator.join(parts)
 
 

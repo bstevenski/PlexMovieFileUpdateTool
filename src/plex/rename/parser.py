@@ -3,13 +3,13 @@ Module for parsing and sanitizing filenames, extracting title and metadata compo
 such as season, episode numbers, and dates, as well as cleaning text for further usage.
 Primarily used in media management or indexing systems.
 """
+
 import re
-from typing import Tuple
 
-from plex.utils import file_util, SEASON_EPISODE_REGEX, DATE_REGEXES
+from plex.utils import DATE_REGEXES, SEASON_EPISODE_REGEX, file_util
 
 
-def parse_tv_filename(filename: str) -> Tuple[int | None, int | None]:
+def parse_tv_filename(filename: str) -> tuple[int | None, int | None]:
     """Extract season and episode numbers from a filename."""
     match = SEASON_EPISODE_REGEX.search(filename)
     if match:
@@ -19,7 +19,7 @@ def parse_tv_filename(filename: str) -> Tuple[int | None, int | None]:
     return None, None
 
 
-def parse_date_in_filename(filename: str) -> Tuple[str | None, int | None]:
+def parse_date_in_filename(filename: str) -> tuple[str | None, int | None]:
     """
     Find a date token in the filename and normalize to YYYY-MM-DD for Plex date-based shows.
     Returns (date_str, year_int) or (None, None)
@@ -32,7 +32,7 @@ def parse_date_in_filename(filename: str) -> Tuple[str | None, int | None]:
     return None, None
 
 
-def guess_title_and_year_from_stem(stem: str) -> Tuple[str, str | None]:
+def guess_title_and_year_from_stem(stem: str) -> tuple[str, str | None]:
     """
     Best-effort extraction of a human title and a (possible) year from a noisy filename stem.
     Examples:
@@ -49,7 +49,7 @@ def guess_title_and_year_from_stem(stem: str) -> Tuple[str, str | None]:
     m = re.search(r"\((19|20)\d{2}\)", s)
     if m:
         year = re.search(r"(19|20)\d{2}", m.group(0)).group(0)
-        title_part = s[:m.start()].strip()
+        title_part = s[: m.start()].strip()
     else:
         # Otherwise pick the last 4-digit year token between 1900-2099
         year_match = None
@@ -57,12 +57,15 @@ def guess_title_and_year_from_stem(stem: str) -> Tuple[str, str | None]:
             year_match = match
         if year_match:
             year = year_match.group(0)
-            title_part = s[:year_match.start()].strip()
+            title_part = s[: year_match.start()].strip()
 
     # Remove leftover common tags like resolution/encoders at the end
     title_part = re.sub(
         r"\b(480p|720p|1080p|2160p|4k|hdr|hdr10\+?|dv|web[- ]?dl|bluray|webrip|x264|x265|h\.264|h\.265|ddp?\d?\.?\d?|atmos|remux)\b",
-        "", title_part, flags=re.IGNORECASE)
+        "",
+        title_part,
+        flags=re.IGNORECASE,
+    )
     title_part = re.sub(r"\s+", " ", title_part).strip(" -_()")
     # Title case lightly (don't shout)
     if title_part.isupper():
@@ -110,9 +113,9 @@ def clean_search_title(stem: str, date_str: str | None = None) -> str:
     search_title = re.sub(r"\(\d{4}\)", "", search_title)
     # Remove matched date token text if present
     if date_str:
-        ds = date_str.replace('-', '[\\-_. ]')
+        ds = date_str.replace("-", "[\\-_. ]")
         try:
-            search_title = re.sub(ds, '', search_title)
+            search_title = re.sub(ds, "", search_title)
         except re.error:
             pass
     return file_util.normalize_text(search_title)

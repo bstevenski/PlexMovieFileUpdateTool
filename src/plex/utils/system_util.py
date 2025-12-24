@@ -12,23 +12,24 @@ Functions:
     - which_or_die: Checks for the presence of a specific binary on the system's
       PATH and terminates the process if it is unavailable.
 """
+
 import shutil
 import subprocess
 import sys
-from typing import Tuple, List
 
 from plex.utils.logger import safe_print
 
 
-def run_cmd(cmd: List[str]) -> Tuple[int, str, str]:
+def run_cmd(cmd: list[str]) -> tuple[int, str, str]:
     """Run a command and return (code, stdout, stderr)."""
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = subprocess.run(cmd, capture_output=True, text=True)
     return p.returncode, p.stdout, p.stderr
 
 
 def which_or_die(binary: str):
     """Check if a binary exists on PATH, exit if not found."""
     if shutil.which(binary) is None:
-        safe_print(f"ERROR: '{binary}' not found on PATH. Install it first (e.g. brew install ffmpeg).",
-                   file=sys.stderr)
+        safe_print(
+            f"ERROR: '{binary}' not found on PATH. Install it first (e.g. brew install ffmpeg).", file=sys.stderr
+        )
         sys.exit(2)

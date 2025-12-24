@@ -6,11 +6,11 @@ This module contains a function that helps infer the default output
 directories for processed files and manual review based on a given
 source file or directory path.
 """
+
 import re
 from pathlib import Path
-from typing import Tuple
 
-from plex.utils import STAGED_FOLDER, ERROR_FOLDER, COMPLETED_FOLDER
+from plex.utils import COMPLETED_FOLDER, ERROR_FOLDER, STAGED_FOLDER
 
 
 def normalize_text(text: str) -> str:
@@ -25,11 +25,11 @@ def sanitize_filename(name: str) -> str:
     Uses str.translate() for optimal performance.
     """
     invalid_chars = '<>:"/\\|?*'
-    translation_table = str.maketrans('', '', invalid_chars)
+    translation_table = str.maketrans("", "", invalid_chars)
     return name.translate(translation_table).strip()
 
 
-def set_root_folders(base: Path) -> Tuple[Path, Path, Path]:
+def set_root_folders(base: Path) -> tuple[Path, Path, Path]:
     """
     Create and return paths for Staged, Errors, and Completed folders under base.
     """

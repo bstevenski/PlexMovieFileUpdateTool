@@ -5,6 +5,7 @@ This module provides functionality to extract details about a video file's codec
 attributes using ffprobe, determine if a video qualifies as 4K or HDR, and create
 customized ffmpeg command lines for transcoding video content to the HEVC format.
 """
+
 import json
 import platform
 import re
@@ -13,32 +14,35 @@ import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, List, Tuple
 
-from plex.utils import system_util, logger, time_util, LogLevel
+from plex.utils import LogLevel, logger, system_util, time_util
 
 
 @dataclass
 class VideoInfo:
     codec: str
-    width: Optional[int]
-    height: Optional[int]
-    pix_fmt: Optional[str]
-    color_primaries: Optional[str]
-    color_transfer: Optional[str]
-    color_space: Optional[str]
-    duration: Optional[float] = None
+    width: int | None
+    height: int | None
+    pix_fmt: str | None
+    color_primaries: str | None
+    color_transfer: str | None
+    color_space: str | None
+    duration: float | None = None
 
 
-def ffprobe_video_info(path: Path) -> Optional[VideoInfo]:
+def ffprobe_video_info(path: Path) -> VideoInfo | None:
     """Probe video file for codec and format information including duration."""
     cmd = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
         "-show_entries",
         "stream=codec_name,width,height,pix_fmt,color_primaries,color_transfer,color_space:format=duration",
-        "-of", "json",
-        str(path)
+        "-of",
+        "json",
+        str(path),
     ]
     code, out, err = system_util.run_cmd(cmd)
     if code != 0:
@@ -65,7 +69,7 @@ def ffprobe_video_info(path: Path) -> Optional[VideoInfo]:
         color_primaries=s.get("color_primaries"),
         color_transfer=s.get("color_transfer"),
         color_space=s.get("color_space"),
-        duration=duration
+        duration=duration,
     )
 
 
@@ -80,7 +84,7 @@ def _looks_hdr(info: VideoInfo) -> bool:
 
 
 @lru_cache(maxsize=1)
-def _available_ffmpeg_encoders() -> List[str]:
+def _available_ffmpeg_encoders() -> list[str]:
     """Return a cached list of available ffmpeg encoders."""
     code, out, _ = system_util.run_cmd(["ffmpeg", "-hide_banner", "-encoders"])
     if code != 0:
@@ -97,7 +101,7 @@ def _available_ffmpeg_encoders() -> List[str]:
     return encoders
 
 
-def _select_encoder(preferred: Optional[str] = None) -> str:
+def _select_encoder(preferred: str | None = None) -> str:
     """Pick an ffmpeg HEVC encoder with platform-aware fallbacks."""
     encoders = set(_available_ffmpeg_encoders())
 
@@ -107,7 +111,7 @@ def _select_encoder(preferred: Optional[str] = None) -> str:
         logger.safe_print(f"WARN: Requested encoder '{preferred}' not found. Falling back automatically.")
 
     system = platform.system()
-    candidates: List[str]
+    candidates: list[str]
     if system == "Darwin":
         candidates = ["hevc_videotoolbox", "hevc_nvenc", "hevc_qsv", "libx265"]
     elif system == "Windows":
@@ -123,8 +127,9 @@ def _select_encoder(preferred: Optional[str] = None) -> str:
     return "libx265"
 
 
-def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool,
-                      preferred_encoder: Optional[str]) -> List[str]:
+def _build_ffmpeg_cmd(
+        src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool, preferred_encoder: str | None
+) -> list[str]:
     """Build ffmpeg command for transcoding video to HEVC."""
     dst.parent.mkdir(parents=True, exist_ok=True)
 
@@ -137,28 +142,45 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
         profile = "main10"
         pix_fmt = "p010le" if _looks_hdr(info) else "yuv420p"
     else:
-        v_bitrate = "7000k"
-        maxrate = "9000k"
-        bufsize = "14000k"
+        v_bitrate = "8500k"
+        maxrate = "10500k"
+        bufsize = "17000k"
         profile = "main"
         pix_fmt = "yuv420p"
 
     cmd = [
         "ffmpeg",
         "-hide_banner",
-        "-loglevel", "error",
+        "-loglevel",
+        "error",
         "-stats",
-        "-i", str(src),
-        "-map", "0:v:0",
-        "-map", "0:a?",
-        "-c:v", encoder,
-        "-b:v", v_bitrate,
-        "-maxrate", maxrate,
-        "-bufsize", bufsize,
-        "-profile:v", profile,
-        "-pix_fmt", pix_fmt,
-        "-tag:v", "hvc1",
+        "-i",
+        str(src),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
+        encoder,
+        "-b:v",
+        v_bitrate,
+        "-maxrate",
+        maxrate,
+        "-bufsize",
+        bufsize,
+        "-profile:v",
+        profile,
+        "-pix_fmt",
+        pix_fmt,
+        "-tag:v",
+        "hvc1",
     ]
+
+    # Add encoder-specific optimizations
+    if encoder == "libx265":
+        cmd += ["-preset", "fast", "-x265-params", "log-level=error"]
+    elif encoder == "hevc_videotoolbox":
+        cmd += ["-allow_sw", "1", "-require_hw", "0"]
 
     if force_audio_aac:
         cmd += ["-c:a", "aac", "-b:a", "192k"]
@@ -177,49 +199,36 @@ def _build_ffmpeg_cmd(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bo
     return cmd
 
 
-def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool = False,
-                    debug: bool = False, delete_source: bool = False,
-                    video_encoder: Optional[str] = None) -> Tuple[
-    int, str, str]:
-    """
-    Transcode a video file to HEVC with logging and progress updates.
-
-    Args:
-        src: Source video file path
-        dst: Destination video file path
-        info: Video information from ffprobe
-        force_audio_aac: Force AAC audio encoding (default: False, copies audio)
-        debug: Enable debug logging (default: False)
-        delete_source: Delete source file after successful transcode (default: False)
-
-    Returns:
-        Tuple of (exit_code, stdout, stderr)
-    """
+def transcode_video(
+        src: Path,
+        dst: Path,
+        info: VideoInfo,
+        force_audio_aac: bool = False,
+        debug: bool = False,
+        delete_source: bool = False,
+        video_encoder: str | None = None,
+) -> tuple[int, str, str]:
     cmd = _build_ffmpeg_cmd(src, dst, info, force_audio_aac, video_encoder)
 
-    logger.log("transcode.start", LogLevel.INFO,
-               file=src.name,
-               dst=dst.name)
+    logger.log("transcode.start", LogLevel.INFO, file=src.name, dst=dst.name)
 
     if debug:
         is_4k_video = _is_4k(info)
         is_hdr_video = _looks_hdr(info)
-        logger.log("transcode.details", LogLevel.DEBUG,
-                   source_codec=info.codec.upper(),
-                   source_res=f"{info.width}x{info.height}",
-                   target="HEVC (H.265)",
-                   encoder=cmd[cmd.index("-c:v") + 1],
-                   quality='4K' if is_4k_video else '1080p',
-                   hdr='HDR' if is_hdr_video else 'SDR',
-                   audio='AAC' if force_audio_aac else 'Copy')
+        logger.log(
+            "transcode.details",
+            LogLevel.DEBUG,
+            source_codec=info.codec.upper(),
+            source_res=f"{info.width}x{info.height}",
+            target="HEVC (H.265)",
+            encoder=cmd[cmd.index("-c:v") + 1],
+            quality="4K" if is_4k_video else "1080p",
+            hdr="HDR" if is_hdr_video else "SDR",
+            audio="AAC" if force_audio_aac else "Copy",
+        )
 
     # Run ffmpeg with progress monitoring
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     stderr_output = []
     last_progress_log = time.time()
@@ -240,19 +249,20 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                 current_time = time.time()
                 if current_time - last_progress_log >= progress_interval:
                     # Extract time and speed from the line
-                    time_match = re.search(r'time=(\S+)', line)
-                    speed_match = re.search(r'speed=(\S+)', line)
+                    time_match = re.search(r"time=(\S+)", line)
+                    speed_match = re.search(r"speed=(\S+)", line)
 
                     if time_match and speed_match:
                         time_str = time_match.group(1)
-                        speed_str = speed_match.group(1).rstrip('x')
+                        speed_str = speed_match.group(1).rstrip("x")
 
                         try:
                             # Convert time string to seconds
-                            time_parts = time_str.split(':')
+                            time_parts = time_str.split(":")
                             if len(time_parts) == 3:
-                                elapsed_seconds = float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(
-                                    time_parts[2])
+                                elapsed_seconds = (
+                                        float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(time_parts[2])
+                                )
 
                                 if info.duration:
                                     # Calculate percentage
@@ -261,26 +271,36 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                                     # Calculate ETA based on encoding speed
                                     speed_val = float(speed_str)
                                     if speed_val > 0:
-                                        eta_str = time_util.get_eta_single_file(info.duration, speed_val,
-                                                                                elapsed_seconds)
+                                        eta_str = time_util.get_eta_single_file(
+                                            info.duration, speed_val, elapsed_seconds
+                                        )
 
-                                        logger.log("transcode.progress", LogLevel.INFO,
-                                                   file=src.name,
-                                                   pct=round(percent, 1),
-                                                   eta=eta_str,
-                                                   speed=f"{speed_str}x")
+                                        logger.log(
+                                            "transcode.progress",
+                                            LogLevel.INFO,
+                                            file=src.name,
+                                            pct=round(percent, 1),
+                                            eta=eta_str,
+                                            speed=f"{speed_str}x",
+                                        )
                                     else:
-                                        logger.log("transcode.progress", LogLevel.INFO,
-                                                   file=src.name,
-                                                   pct=round(percent, 1),
-                                                   speed=f"{speed_str}x")
+                                        logger.log(
+                                            "transcode.progress",
+                                            LogLevel.INFO,
+                                            file=src.name,
+                                            pct=round(percent, 1),
+                                            speed=f"{speed_str}x",
+                                        )
                                 else:
                                     # Duration not available
-                                    logger.log("transcode.progress", LogLevel.INFO,
-                                               file=src.name,
-                                               pct="N/A",
-                                               eta="N/A",
-                                               speed=f"{speed_str}x")
+                                    logger.log(
+                                        "transcode.progress",
+                                        LogLevel.INFO,
+                                        file=src.name,
+                                        pct="N/A",
+                                        eta="N/A",
+                                        speed=f"{speed_str}x",
+                                    )
                         except (ValueError, ZeroDivisionError):
                             pass  # Skip progress update if parsing fails
 
@@ -290,14 +310,17 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
     stdout, remaining_stderr = process.communicate()
     stderr_output.append(remaining_stderr)
 
-    stderr_text = ''.join(stderr_output)
+    stderr_text = "".join(stderr_output)
     code = process.returncode
 
     if code != 0:
-        logger.log("transcode.failed", LogLevel.ERROR,
-                   file=src.name,
-                   exit_code=code,
-                   error=stderr_text[:200] if debug else "see logs")
+        logger.log(
+            "transcode.failed",
+            LogLevel.ERROR,
+            file=src.name,
+            exit_code=code,
+            error=stderr_text[:200] if debug else "see logs",
+        )
     else:
         source_deleted = False
         if delete_source:
@@ -305,12 +328,8 @@ def transcode_video(src: Path, dst: Path, info: VideoInfo, force_audio_aac: bool
                 src.unlink()
                 source_deleted = True
             except (OSError, PermissionError) as e:
-                logger.log("transcode.delete_failed", LogLevel.WARN,
-                           file=src.name,
-                           error=str(e))
+                logger.log("transcode.delete_failed", LogLevel.WARN, file=src.name, error=str(e))
 
-        logger.log("transcode.complete", LogLevel.INFO,
-                   file=src.name,
-                   source_deleted=source_deleted)
+        logger.log("transcode.complete", LogLevel.INFO, file=src.name, source_deleted=source_deleted)
 
     return code, stdout, stderr_text

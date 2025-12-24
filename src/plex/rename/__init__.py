@@ -6,7 +6,7 @@ filename structures according to Plex conventions, and perform TMDb-based
 renaming for TV shows and movies.
 
 Package organization:
-- parsing: Filename parsing and text normalization utilities (e.g. extracting
+- parsing: Filename parsing and text normalization utilities (e.g., extracting
   titles, seasons, episodes, and dates from filenames).
 - formatting: Path and filename formatting helpers to produce consistent Plex
   folder and file names.
@@ -44,15 +44,16 @@ Dependencies and compatibility:
 - Written for modern Python (3.8+). Platform-independent, used on macOS in the
   development environment.
 """
+
 # Public rename functions
 from .batch import rename_files
 from .core import (
-    rename_tv_file,
     rename_movie_file,
+    rename_tv_file,
 )
 from .parser import (
-    parse_tv_filename,
     parse_date_in_filename,
+    parse_tv_filename,
 )
 
 __all__ = [

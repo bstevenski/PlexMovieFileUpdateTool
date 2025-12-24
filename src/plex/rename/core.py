@@ -1,9 +1,9 @@
 """
 Utilities for renaming TV and movie files using metadata lookup.
 
-This module provides functions to rename TV and movie files based on metadata 
-retrieved from The Movie Database (TMDb). It includes functionality to handle 
-fallbacks when metadata is unavailable and ensures filenames are sanitized 
+This module provides functions to rename TV and movie files based on metadata
+retrieved from The Movie Database (TMDb). It includes functionality to handle
+fallbacks when metadata is unavailable and ensures filenames are sanitized
 and formatted consistently.
 
 Functions:
@@ -15,18 +15,17 @@ Functions:
 - _build_movie_fallback: Builds a fallback filename for movies when metadata is unavailable.
 - _extract_fallback_title: Extracts a fallback title from the filename if metadata is unavailable.
 """
+
 import re
 from pathlib import Path
-from typing import Tuple, Optional
 
 from plex.rename import formatter, parser
-from plex.utils import logger, tmdb, file_util, LogLevel, DEBUG
-
-in_debug_mode = DEBUG
+from plex.utils import LogLevel, file_util, logger, tmdb
 
 
-def rename_tv_file(file: Path, season: int, episode: int, date_str: Optional[str] = None,
-                   date_year: Optional[int] = None) -> Tuple[Path, bool, bool]:
+def rename_tv_file(
+        file: Path, season: int, episode: int, date_str: str | None = None, date_year: int | None = None
+) -> tuple[Path, bool, bool]:
     """
     Rename a TV file using TMDb metadata lookup and formatting helpers.
 
@@ -65,19 +64,20 @@ def rename_tv_file(file: Path, season: int, episode: int, date_str: Optional[str
     series_info = {
         "id": tmdb_data.get("tmdb_id") if tmdb_data else None,
         "title": file_util.sanitize_filename(tmdb_data.get("name", search_title)) if tmdb_data else None,
-        "year": tmdb_data.get("year", "Unknown") if tmdb_data else None
+        "year": tmdb_data.get("year", "Unknown") if tmdb_data else None,
     }
 
     if series_info["id"]:
-        logger.log("rename.tmdb.match", LogLevel.DEBUG,
-                   title=series_info["title"],
-                   year=series_info["year"],
-                   tmdb_id=series_info["id"])
+        logger.log(
+            "rename.tmdb.match",
+            LogLevel.DEBUG,
+            title=series_info["title"],
+            year=series_info["year"],
+            tmdb_id=series_info["id"],
+        )
 
     if not series_info["id"]:
-        logger.log("rename.tmdb.no_match", LogLevel.WARN,
-                   file=file.name,
-                   search_term=search_title)
+        logger.log("rename.tmdb.no_match", LogLevel.WARN, file=file.name, search_term=search_title)
 
         base_title, guessed_year = parser.guess_title_and_year_from_stem(search_title)
         if not base_title or len(base_title.strip()) < 2:
@@ -86,19 +86,23 @@ def rename_tv_file(file: Path, season: int, episode: int, date_str: Optional[str
 
     if date_str:
         folder_year = str(date_year) if date_year else series_info["year"]
-        new_folder = formatter.build_folder_name(series_info["title"], folder_year,
-                                                 series_info["id"]) / f"Season {date_year or '01'}"
+        new_folder = (
+                formatter.build_folder_name(series_info["title"], folder_year, series_info["id"])
+                / f"Season {date_year or '01'}"
+        )
         new_filename = f"{series_info['title']} - {date_str}{file.suffix}"
         return new_folder / new_filename, True, True
 
     episode_title = _get_episode_title(file, series_info["id"], season, episode, date_str)
-    new_folder = formatter.build_folder_name(series_info["title"], series_info["year"],
-                                             series_info["id"]) / f"Season {season:02d}"
+    new_folder = (
+            formatter.build_folder_name(series_info["title"], series_info["year"], series_info["id"])
+            / f"Season {season:02d}"
+    )
     new_filename = _build_tv_filename(series_info["title"], season, episode, episode_title, file.suffix)
     return new_folder / new_filename, True, True
 
 
-def rename_movie_file(file: Path) -> Tuple[Path, bool, bool]:
+def rename_movie_file(file: Path) -> tuple[Path, bool, bool]:
     """
     Rename a movie file using TMDb metadata lookup and project helpers.
 
@@ -122,17 +126,18 @@ def rename_movie_file(file: Path) -> Tuple[Path, bool, bool]:
     base_title, guessed_year = parser.guess_title_and_year_from_stem(file.stem)
     search_title = base_title if base_title else file_util.normalize_text(file.stem)
 
-    logger.log("rename.lookup", LogLevel.DEBUG,
-               file=file.name,
-               type="movie",
-               search_term=search_title,
-               guessed_year=guessed_year or "unknown")
+    logger.log(
+        "rename.lookup",
+        LogLevel.DEBUG,
+        file=file.name,
+        type="movie",
+        search_term=search_title,
+        guessed_year=guessed_year or "unknown",
+    )
 
     tmdb_data = tmdb.search_tmdb_movie(search_title, year=int(guessed_year) if guessed_year else None)
     if not tmdb_data:
-        logger.log("rename.tmdb.no_match", LogLevel.WARN,
-                   file=file.name,
-                   search_term=search_title)
+        logger.log("rename.tmdb.no_match", LogLevel.WARN, file=file.name, search_term=search_title)
 
         if not base_title or len(base_title.strip()) < 2:
             base_title = _extract_fallback_title(file.stem)
@@ -144,10 +149,7 @@ def rename_movie_file(file: Path) -> Tuple[Path, bool, bool]:
     year = tmdb_data.get("year", "Unknown")
     tmdb_id = tmdb_data.get("tmdb_id")
 
-    logger.log("rename.tmdb.match", LogLevel.DEBUG,
-               title=title,
-               year=year,
-               tmdb_id=tmdb_id)
+    logger.log("rename.tmdb.match", LogLevel.DEBUG, title=title, year=year, tmdb_id=tmdb_id)
 
     new_folder = formatter.build_folder_name(title, year, tmdb_id)
     new_filename = f"{title} ({year}) {{tmdb-{tmdb_id}}}{file.suffix}" if tmdb_id else f"{title} ({year}){file.suffix}"
@@ -164,7 +166,7 @@ def _build_tv_fallback(file, base_title, guessed_year, season, episode, date_str
     - guessed_year (str|None): Guessed year derived from the filename, if any.
     - season (int): Season number.
     - episode (int): Episode number.
-    - date_str (str|None): If present, treat the episode as a date-based episode (e.g. daily shows).
+    - date_str (str|None): If present, treat the episode as a date-based episode (e.g., daily shows).
     - date_year (int|None): Year associated with `date_str` for folder naming.
 
     Returns:
@@ -208,16 +210,12 @@ def _get_episode_title(file, series_id, season, episode, date_str):
         return date_str
     filename_title = parser.extract_episode_title_from_filename(file.stem)
     if filename_title:
-        logger.log("rename.episode", LogLevel.TRACE,
-                   episode_title=filename_title,
-                   source="filename")
+        logger.log("rename.episode", LogLevel.TRACE, episode_title=filename_title, source="filename")
         return filename_title
     ep_data = tmdb.get_tmdb_episode(series_id, season, episode)
     if ep_data and ep_data.get("name"):
         episode_title = file_util.sanitize_filename(ep_data["name"])
-        logger.log("rename.episode", LogLevel.TRACE,
-                   episode_title=episode_title,
-                   source="TMDb")
+        logger.log("rename.episode", LogLevel.TRACE, episode_title=episode_title, source="TMDb")
         return episode_title
     return f"s{season:02d}e{episode:02d}"
 
