@@ -12,6 +12,11 @@ build/
 *.iml
 .idea/
 
+# Eclipse/PyDev
+.project
+.pydevproject
+.settings/
+
 # Virtual environments
 .venv/
 venv/
@@ -25,7 +30,7 @@ Thumbs.db
 # Development
 *.backup
 *.bak
-/logs/
+/.logs/
 /.env
 
 # Testing
@@ -34,4 +39,4 @@ Thumbs.db
 htmlcov/
 
 # Source media files
-/media-processing/
+/.media/

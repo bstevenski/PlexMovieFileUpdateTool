@@ -1,0 +1,49 @@
+Plexifier: A tool that processes media files downloaded from torrent clients and
+prepares them for Plex.
+
+Outline:
+TV Shows:
+    1. **File Scanning**: Recursively scan ../ready-to-process/TV Shows for episode files.
+        Note: files might be in subfolders for the show/season.
+    2. **Filename Parsing**: Use parsing logic to identify find: series name, season number, episode number.
+        Example: "Show.Name.SxxExx.Video-Quality.Episode.Title.Source.Additional.Info.<etx>"
+                 "Its.Always.Sunny.in.Philadelphia.S01E06.The.Gang.Finds.a.Dead.Guy.480p.WEB-DL.AAC2.0.H.264-BTN.mkv"
+                 "Ghosts.2021.S01E01.Pilot.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb"
+                 "Law.and.Order.SVU.S25E01.1080p.x265-ELiTE[EZTVx.to].mkv"
+    3. **TMDb Lookup**: Query TMDb API with series name and season/episode numbers.
+    4. **Rename File**: Construct new filename using resources/naming-and-organizing-tv-show-files.html naming conventions
+          Example: "It's Always Sunny in Philadelphia (2005-) {tmdb-2710}/Season 01/It's Always Sunny in Philadelphia - S01E06 - The Gang Finds a Dead Guy.mkv"
+    5. **Move File**: Move renamed file to ./media-processing/ready-to-transcode/TV Shows.
+    6. **Transcoding**: Transcode the episode files that are ready to transcode to be compatible with most devices that support Plex, but especially Apple TVs.
+    7. **Completion**: Once transcoding is complete, move files to ../ready-for-plex/TV Shows.
+Movies:
+    1. **File Scanning**: Recursively scan ../ready-to-process/Movies for movie files.
+        Note: files might be in subfolders.
+    2. **Filename Parsing**: Use parsing logic to identify find: movie title.
+        Example: "Movie.Title.[Release-Year].Video-Quality.[Additional.Info].[Source].<etx>"
+                 "Wake.Up.Dead.Man.A.Knives.Out.Mystery.2025.2160p.NF.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-BYNDR[PianYuan]"
+    3. **TMDb Lookup**: Query TMDb API with movie title.
+        Note: if multiple results are found, use the year from the filename to disambiguate, if provided. Else, log for manual review.
+    4. **Rename File**: Construct new filename using resources/naming-and-organizing-movie-files.html naming conventions
+          Example: "Wake Up Dead Man A Knives Out Mystery (2025) {tmdb-812583}.mkv"
+    5. **Move File**: Move renamed file to ./media-processing/ready-to-transcode/Movies.
+    6. **Transcoding**: Transcode the episode files that are ready to transcode to be compatible with most devices that support Plex, but especially Apple TVs.
+        Note: use the same transcoding settings as TV Shows for consistency.
+    7. **Completion**: Once transcoding is complete, move files to ../ready-for-plex/Movies.
+Both Movies and TV Shows:
+    1. **Error Handling**: If any error occurs, move original file and any temp files (partially renamed file/failed transcoded file) to ./media-processing/errored-files/TV Shows for manual review.
+    2. **Logging**: Log all actions, including successful renames and errors, to a log file for auditing.
+        * Use a structured logging format (e.g., JSON) for easier parsing later.
+        * Use different log levels (DEBUG, INFO, WARN, ERROR) to categorize log entries.
+            * Default log level is INFO.
+            * If in dry-run mode, set log level to DEBUG to capture detailed proposed changes.
+            * Allow user to specify log level via CLI argument.
+    3. **Multiprocessing**: Utilize multiprocessing to handle multiple files concurrently for efficiency.
+    4. **Dry-Run Mode**: Provide a dry-run mode to preview changes without making actual modifications.
+    5. **Command-Line Interface (CLI)**: Implement a command-line interface (CLI) for user interaction
+    6. **Configuration Management**: Maintain a configuration file for easy adjustments of settings like folder paths and API keys.
+    7. **Testing**: Include unit tests to verify the correctness of parsing, renaming, and moving logic.
+    8. **Documentation**: Document the code and provide usage instructions for users.
+    9. **Run Settings**: Have the normal mode kick off the process and provide ways a user can trail the progress.
+            * trail log file
+            * check running process via PID

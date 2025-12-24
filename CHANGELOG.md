@@ -1,56 +1,67 @@
-Changelog
-=========
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
-The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-- Nothing yet.
-
-## [0.2.0] - 2025-12-03
+## [1.0.0] - 2025-12-24
 
 ### Added
 
-- Manual Check destination and `--manual-root` CLI flag for items that cannot be safely renamed.
-- Automatic post-run pruning of empty folders under the source `root` (skips the top-level root).
-- README updates documenting routing matrix, inferred destination roots, and pruning behavior.
+- Initial release of Plex Media Tool
+- Automated media file processing pipeline
+- TMDb API integration for metadata lookup
+- Plex-compliant file naming and organization
+- Video transcoding to H.264/AAC for maximum compatibility
+- CLI interface with dry-run and debug capabilities
+- Comprehensive logging system
+- Error handling and file recovery mechanisms
 
 ### Changed
 
-- Routing rules finalized:
-    - Matched (IMDb ID found) → `3.Upload`
-    - Unmatched but renamable → `.mkv` → `3.Upload`, non-`.mkv` → `2.Convert`
-    - Not renamable → `1.Manual Check`
-- Improved title/year fallback extraction from noisy filenames.
-- Switched OMDb endpoint to HTTPS.
+- Simplified transcoding to always target H.264 instead of HEVC for broader device compatibility
+- Removed HEVC detection and compatibility checks
+- Improved package structure following Python packaging standards
+- Updated imports to use relative imports in package `__init__.py`
+- Fixed entry point configuration in pyproject.toml
+- Updated log directory to use `.logs/` (hidden directory)
+- Fixed coverage configuration from `plex` to `plexifier`
 
 ### Fixed
 
-- Removed duplicate `sXXeYY` token in TV filenames (now `Show - s01e01.ext` when no episode title).
-- Addressed IDE/static analysis warnings in `plex_renamer.py` (uninitialized locals, unused vars, shadowed names,
-  redundant parentheses, narrowed exceptions, typos).
+- Fixed missing formatter and parser module imports
+- Fixed unused 'frame' parameter in signal handler
+- Fixed wildcard imports in package initialization
+- Added IDE files (.project, .pydevproject) to .gitignore
+- Updated all references to use consistent log directory naming
 
-## [0.1.1] - 2025-11-30
+### Deprecated
 
-Patch release inferred from the most recent commits on the default branch (2–5 latest commits).
+- HEVC skipping functionality - all files are now processed for maximum compatibility
+- Previous CLI flags related to HEVC handling (kept for backward compatibility)
 
-### Added
+### Security
 
-- Add MIT LICENSE file to the repository.
+- No sensitive information logged or committed
+- Environment variable usage for API keys
 
-### Changed
+### Documentation
 
-- Update and expand README.md (usage, requirements, notes).
-- Refine .gitignore entries.
+- Updated README with current CLI options and usage
+- Added comprehensive troubleshooting section
+- Added development and testing instructions
+- Documented project structure and architecture
 
-## [0.1.0] - Initial release
+---
 
-### Added
+## [Unreleased] - Development
 
-- Initial CLI tool plex_renamer.py with core functionality:
-    - OMDb-powered lookups for movies and TV.
-    - TV episode detection from filenames (e.g., S01E02).
-    - IMDb ID tagging in destination folders.
-    - Dry-run support and optional progress display.
+### Planned
+
+- [ ] Unit test coverage for all modules
+- [ ] Integration tests for end-to-end workflows
+- [ ] Configuration file support
+- [ ] More transcoding options (quality settings, different codecs)
+- [ ] Progress reporting and notifications
+- [ ] Docker containerization
