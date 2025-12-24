@@ -198,13 +198,22 @@ make kill   # kill running plexifier processes
     - Moves renamable files into `Staged/[Movies|TV Shows]/...`
     - Sends ambiguous/unmatched files to `Errors` for manual review
 
-2. **Transcode** (Staged → Completed)
+2. **Handle Problematic Shows** (Manual Intervention)
+    - Some TV shows may have incorrect episode numbering but correct titles in filenames
+    - These files typically get sent to `Errors` folder during standard processing
+    - **Solution**: Process these problematic shows separately after main run:
+      ```bash
+      # Manually rename files to correct format and re-run only on specific folder
+      python3 src/plexifier/plexifier.py /path/to/Errors/TV\ Shows --dry-run
+      ```
+
+3. **Transcode** (Staged → Completed)
     - Converts videos to MP4 format using H.264/AAC for maximum device compatibility
     - Only transcodes files that are not already in compatible format
     - On success: file is placed in `Completed` and staged source is removed
     - On failure: staged source is moved to `Errors`
 
-3. **Cleanup**
+4. **Cleanup**
     - Move any strays from `Staged`/`Queue` to `Errors`
     - Reset `Queue` to only `Movies` and `TV Shows` subfolders
 
