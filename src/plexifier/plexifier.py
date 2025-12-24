@@ -15,10 +15,7 @@ import signal
 import sys
 from pathlib import Path
 
-# Add src directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-
-from constants import (
+from plexifier.constants import (
     COMPLETED_FOLDER,
     CONTENT_TYPE_MOVIES,
     CONTENT_TYPE_TV,
@@ -27,21 +24,22 @@ from constants import (
     QUEUE_FOLDER,
     STAGED_FOLDER,
     WORKERS,
+    LOG_DIR,
 )
-from file_manager import (
+from plexifier.file_manager import (
     create_error_directory,
     ensure_directory_exists,
     safe_move_with_backup,
     scan_media_files,
 )
-from formatter import (
+from plexifier.formatter import (
     construct_movie_path,
     construct_tv_show_path,
 )
-from logger import setup_logging
-from parser import parse_media_file
-from tmdb_client import TMDbClient, TMDbError
-from transcoder import (
+from plexifier.logger import setup_logging
+from plexifier.parser import parse_media_file
+from plexifier.tmdb_client import TMDbClient, TMDbError
+from plexifier.transcoder import (
     VideoInfo,
     cleanup_transcoding_artifacts,
     needs_transcoding,
@@ -59,6 +57,7 @@ class Plexifier:
         log_level: str = DEFAULT_LOG_LEVEL,
         workers: int = WORKERS,
         skip_transcoding: bool = False,
+        use_episode_titles: bool = False,
     ):
         """
         Initialize the Plexifier.
@@ -68,17 +67,18 @@ class Plexifier:
             log_level: Logging level
             workers: Number of worker processes
             skip_transcoding: Skip video transcoding step
+            use_episode_titles: Use episode titles instead of S##E## numbers for TV shows
         """
         self.dry_run = dry_run
         self.log_level = log_level
         self.workers = workers
         self.skip_transcoding = skip_transcoding
+        self.use_episode_titles = use_episode_titles
 
         # Set up logging
-        log_dir = Path.cwd() / "logs"
         self.logger = setup_logging(
             log_level=log_level,
-            log_dir=log_dir,
+            log_dir=Path(LOG_DIR),
             enable_console=True,
         )
 
@@ -165,7 +165,7 @@ class Plexifier:
 
         if not content_queue_dir.exists():
             self.logger.warning(f"Queue directory does not exist: {content_queue_dir}")
-            return (0, 0, 0)
+            return 0, 0, 0
 
         self.logger.info(f"Processing {content_type} from: {content_queue_dir}")
 
@@ -193,7 +193,7 @@ class Plexifier:
             errors=error_count,
         )
 
-        return (processed_count + error_count, processed_count, error_count)
+        return processed_count + error_count, processed_count, error_count
 
     def _process_file(self, filepath: Path, content_type: str) -> bool:
         """Process a single media file through the entire pipeline."""
@@ -210,7 +210,7 @@ class Plexifier:
                 return self._handle_error(filepath, "TMDb lookup failed")
 
             # Step 3: Format new filename and path
-            new_path = self._format_new_path(media_info, tmdb_data)
+            new_path = self._format_new_path(media_info, tmdb_data, self.use_episode_titles)
             self.logger.debug(f"New path: {new_path}")
 
             # Step 4: Move to staging area
@@ -254,7 +254,7 @@ class Plexifier:
             return None
 
     @staticmethod
-    def _format_new_path(media_info: dict, tmdb_data: dict) -> Path:
+    def _format_new_path(media_info: dict, tmdb_data: dict, use_episode_titles: bool = False) -> Path:
         """Format the new path according to Plex conventions."""
         staged_dir = Path(STAGED_FOLDER) / media_info["content_type"]
         tmdb_id = tmdb_data["id"]
@@ -278,6 +278,7 @@ class Plexifier:
                 media_info["episode"],
                 media_info["episode_title"],
                 extension,
+                use_episode_titles,
             )
 
         return new_path
@@ -365,12 +366,13 @@ def main():
         description="Automated Plex media file processing pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+ Examples:
   %(prog)s                                    # Process from default queue directory
   %(prog)s /path/to/media                    # Process from custom directory
   %(prog)s --dry-run                         # Preview changes without modifications
   %(prog)s --skip-transcoding                 # Skip video transcoding
   %(prog)s --log-level DEBUG                 # Enable debug logging
+  %(prog)s --use-episode-titles              # Use episode titles instead of S##E## numbers for TV shows
         """,
     )
 
@@ -390,6 +392,12 @@ Examples:
         "--skip-transcoding",
         action="store_true",
         help="Skip video transcoding step",
+    )
+
+    parser.add_argument(
+        "--use-episode-titles",
+        action="store_true",
+        help="Use episode titles instead of S##E## numbers for TV shows (useful when episode numbers are incorrect)",
     )
 
     parser.add_argument(
@@ -414,6 +422,7 @@ Examples:
         log_level=args.log_level,
         workers=args.workers,
         skip_transcoding=args.skip_transcoding,
+        use_episode_titles=getattr(args, "use_episode_titles", False),
     )
 
     try:

@@ -13,7 +13,7 @@ from typing import Dict, Optional
 
 import ffmpeg
 
-from constants import TRANSCODE_SETTINGS
+from .constants import TRANSCODE_SETTINGS
 
 logger = logging.getLogger(__name__)
 

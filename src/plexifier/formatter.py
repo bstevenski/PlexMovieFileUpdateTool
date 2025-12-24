@@ -30,29 +30,36 @@ def _format_movie_filename(title: str, year: int, tmdb_id: int, extension: str) 
 
 
 def _format_episode_filename(
-        series_title: str,
-        season: int,
-        episode: int,
-        episode_title: Optional[str],
-        extension: str,
+    series_title: str,
+    season: int,
+    episode: int,
+    episode_title: Optional[str],
+    extension: str,
+    use_episode_title_only: bool = False,
 ) -> str:
     """
     Format a TV show episode filename according to Plex conventions.
 
-    Example: "It's Always Sunny in Philadelphia - S01E06 - The Gang Finds a Dead Guy {tmdb-2710}.mkv"
+    Standard Example: "It's Always Sunny in Philadelphia - S01E06 - The Gang Finds a Dead Guy.mkv"
+    Episode Title Only Example: "It's Always Sunny in Philadelphia - The Gang Finds a Dead Guy.mkv"
     """
     # Clean title and ensure proper spacing
     clean_title = " ".join(series_title.split())
 
-    # Format season and episode numbers with leading zeros
-    season_str = f"{season:02d}"
-    episode_str = f"{episode:02d}"
-
-    if episode_title:
+    if use_episode_title_only and episode_title:
+        # Use episode title only, no season/episode numbers
         clean_episode_title = " ".join(episode_title.split())
-        filename = f"{clean_title} - S{season_str}E{episode_str} - {clean_episode_title}{extension}"
+        filename = f"{clean_title} - {clean_episode_title}{extension}"
     else:
-        filename = f"{clean_title} - S{season_str}E{episode_str}{extension}"
+        # Standard format with season/episode numbers
+        season_str = f"{season:02d}"
+        episode_str = f"{episode:02d}"
+
+        if episode_title:
+            clean_episode_title = " ".join(episode_title.split())
+            filename = f"{clean_title} - S{season_str}E{episode_str} - {clean_episode_title}{extension}"
+        else:
+            filename = f"{clean_title} - S{season_str}E{episode_str}{extension}"
 
     logger.debug(f"Formatted TV filename: {filename}")
     return filename
@@ -91,11 +98,11 @@ def _format_season_folder_name(season: int) -> str:
 
 ### Public functions ###
 def construct_movie_path(
-        base_dir: Path,
-        title: str,
-        year: int,
-        tmdb_id: int,
-        extension: str,
+    base_dir: Path,
+    title: str,
+    year: int,
+    tmdb_id: int,
+    extension: str,
 ) -> Path:
     """Construct the full path for a movie file."""
     filename = _format_movie_filename(title, year, tmdb_id, extension)
@@ -103,16 +110,21 @@ def construct_movie_path(
 
 
 def construct_tv_show_path(
-        base_dir: Path,
-        title: str,
-        year: Optional[int],
-        tmdb_id: int,
-        season: int,
-        episode: int,
-        episode_title: Optional[str],
-        extension: str,
+    base_dir: Path,
+    title: str,
+    year: Optional[int],
+    tmdb_id: int,
+    season: int,
+    episode: int,
+    episode_title: Optional[str],
+    extension: str,
+    use_episode_title_only: bool = False,
 ) -> Path:
-    """Construct the full path for a TV show episode file."""
+    """Construct the full path for a TV show episode file.
+
+    Args:
+        use_episode_title_only: If True, use episode title instead of S##E## numbers
+    """
     # Create show folder
     show_folder_name = _format_tv_show_folder_name(title, year, tmdb_id)
     show_folder = base_dir / show_folder_name
@@ -122,6 +134,6 @@ def construct_tv_show_path(
     season_folder = show_folder / season_folder_name
 
     # Create filename
-    filename = _format_episode_filename(title, season, episode, episode_title, extension)
+    filename = _format_episode_filename(title, season, episode, episode_title, extension, use_episode_title_only)
 
     return season_folder / filename

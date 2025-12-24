@@ -1,7 +1,3 @@
-# Updated Folder Constants
-
-The folder structure has been updated to be more logical:
-
 ## New Structure
 
 ```
@@ -20,9 +16,9 @@ ready-for-plex/         # Auto-created output folder
 
 ## Constants Updated
 
-- `QUEUE_FOLDER = "../ready-to-process"`           # Input folder at same level as project root
-- `ERROR_FOLDER = "errored-files"`                   # Error files in project root
-- `STAGED_FOLDER = "ready-to-transcode"`             # Staging files in project root
+- `QUEUE_FOLDER = "../ready-to-process"`             # Input folder at same level as project root
+- `ERROR_FOLDER = ".././media/errored-files"`        # Error files in project root
+- `STAGED_FOLDER = ".././media/ready-to-transcode"`  # Staging files in project root
 - `COMPLETED_FOLDER = "../ready-for-plex"`           # Output folder at same level as project root
 
 This places:

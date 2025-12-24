@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TMDb API integration for metadata lookup
 - Plex-compliant file naming and organization
 - Video transcoding to H.264/AAC for maximum compatibility
-- CLI interface with dry-run and debug capabilities
+- CLI with dry-run and debug capabilities
 - Comprehensive logging system
 - Error handling and file recovery mechanisms
 

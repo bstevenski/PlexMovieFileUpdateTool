@@ -23,11 +23,11 @@ CONTENT_TYPE_MOVIES = "Movies"
 CONTENT_TYPE_TV = "TV Shows"
 
 # Folder name constants
-# All paths are relative to project root where script is run
-QUEUE_FOLDER = "../ready-to-process"  # Input folder at same level as project root
-ERROR_FOLDER = "./.media/errored-files"  # Error files in .media folder at project root
-STAGED_FOLDER = "./.media/ready-to-transcode"  # Staging files in .media folder at project root
-COMPLETED_FOLDER = "../ready-for-plex"  # Output folder at same level as project root
+# All paths are relative to plex-media-tool directory where script is run
+QUEUE_FOLDER = "../ready-to-process"  # Input folder at same level as plex-media-tool
+ERROR_FOLDER = "../.media/errored-files"  # Error files in .media folder at plex-media-tool level
+STAGED_FOLDER = "../.media/ready-to-transcode"  # Staging files in .media folder at plex-media-tool level
+COMPLETED_FOLDER = "../ready-for-plex"  # Output folder at same level as plex-media-tool
 
 # Run settings
 DEBUG = False
@@ -70,4 +70,4 @@ TRANSCODE_SETTINGS = {
 # Logging configuration
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARN": 30, "WARNING": 30, "ERROR": 40}
 DEFAULT_LOG_LEVEL = "INFO"
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DIR = "./.logs"

@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 from typing import Generator, Optional
 
-from constants import VIDEO_EXTENSIONS
+from .constants import VIDEO_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 

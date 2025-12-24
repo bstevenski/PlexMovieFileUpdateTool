@@ -64,8 +64,10 @@ python_functions = ["test_*"]
 addopts = "-v --cov=plexifier --cov-report=term-missing"
 
 [tool.hatch.envs.default.scripts]
-standard-run = "python src/plexifier/plexifier.py"
-debug-run = "python src/plexifier/plexifier.py --dry-run --log-level DEBUG"
+standard-run = "PYTHONPATH=src python -m plexifier.plexifier"
+debug-run = "PYTHONPATH=src python -m plexifier.plexifier --dry-run --log-level DEBUG"
+episode-title-run = "PYTHONPATH=src python -m plexifier.plexifier --use-episode-titles"
+episode-title-debug = "PYTHONPATH=src python -m plexifier.plexifier --use-episode-titles --dry-run --log-level DEBUG"
 ps = """
      pgrep -fl plexifier || echo 'No plexifier processes found';
      pgrep -fl ffmpeg || echo 'No ffmpeg processes found'
@@ -94,24 +96,28 @@ clean-logs = """
              """
 clean-all = ['clean-python', 'clean-logs']
 help = """
-       echo 'Available commands:'; echo
-       '   hatch run standard-run
-           - Run plexifier in standard mode'; echo
-       '   hatch run debug-run
-           - Run plexifier in debug/dry-run mode'; echo
-       '   hatch run ps
-           - List running plexifier and ffmpeg processes'; echo
-       '   hatch run trail-log
-           - Tail the latest log file'; echo
-       '   hatch run kill
-           - Stop any running plexifier and ffmpeg processes'; echo
-       '   hatch run clean-python
-           - Remove Python cache files and directories'; echo
-       '   hatch run clean-logs
-           - Remove old log files'; echo
-       '   hatch run clean-all
-           - Perform a full clean (Python cache + log files)'
-       """
+        echo 'Available commands:'; echo
+        '   hatch run standard-run
+            - Run plexifier in standard mode'; echo
+        '   hatch run debug-run
+            - Run plexifier in debug/dry-run mode'; echo
+        '   hatch run episode-title-run
+            - Run plexifier using episode titles instead of S##E## numbers'; echo
+        '   hatch run episode-title-debug
+            - Run plexifier in debug mode using episode titles'; echo
+        '   hatch run ps
+            - List running plexifier and ffmpeg processes'; echo
+        '   hatch run trail-log
+            - Tail the latest log file'; echo
+        '   hatch run kill
+            - Stop any running plexifier and ffmpeg processes'; echo
+        '   hatch run clean-python
+            - Remove Python cache files and directories'; echo
+        '   hatch run clean-logs
+            - Remove old log files'; echo
+        '   hatch run clean-all
+            - Perform a full clean (Python cache + log files)'
+        """
 
 [tool.pydocstyle]
 select = ["D"]

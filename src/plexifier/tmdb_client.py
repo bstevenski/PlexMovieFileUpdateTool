@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 
 import requests
 
-from constants import TMDB_API_KEY, TMDB_BASE_URL
+from .constants import TMDB_API_KEY, TMDB_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -50,19 +50,34 @@ class TMDbClient:
         url = f"{TMDB_BASE_URL}/{endpoint.lstrip('/')}"
 
         try:
+            logger.debug(f"🌐 TMDb API request: {url}")
+            if params:
+                # Redact API key for logging
+                safe_params = {k: v for k, v in params.items() if k != "api_key"}
+                logger.debug(f"📝 Request params: {safe_params}")
+
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
 
             data = response.json()
 
             if "success" in data and not data["success"]:
+                logger.error(f"❌ TMDb API error: {data.get('status_message', 'Unknown error')}")
                 raise TMDbAPIError(f"TMDb API error: {data.get('status_message', 'Unknown error')}")
+
+            # Log response summary (not full data to avoid spam)
+            if "results" in data:
+                logger.debug(f"📊 TMDb response: {len(data['results'])} results found")
+            else:
+                logger.debug(f"📊 TMDb response: success")
 
             return data
 
         except requests.exceptions.RequestException as e:
+            logger.error(f"🔥 TMDb request failed: {e}")
             raise TMDbAPIError(f"Request failed: {e}")
         except ValueError as e:
+            logger.error(f"🔥 TMDb JSON decode failed: {e}")
             raise TMDbAPIError(f"Invalid JSON response: {e}")
 
     def search_movie(self, title: str, year: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -75,6 +90,17 @@ class TMDbClient:
         data = self._make_request("search/movie", params)
         results = data.get("results", [])
         logger.info(f"📊 TMDb returned {len(results)} movie results")
+
+        # Log top results for debugging
+        if results:
+            logger.debug(f"🎬 Top TMDb movie results:")
+            for i, result in enumerate(results[:3]):
+                logger.debug(
+                    f"  {i + 1}. {result.get('title')} ({result.get('release_date', 'Unknown')}) - ID: {result.get('id')}"
+                )
+        else:
+            logger.warning(f"🚫 No TMDb movie results found for: '{title}' ({year})")
+
         return results
 
     def search_tv_show(self, title: str, first_air_date_year: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -87,6 +113,17 @@ class TMDbClient:
         data = self._make_request("search/tv", params)
         results = data.get("results", [])
         logger.info(f"📊 TMDb returned {len(results)} TV show results")
+
+        # Log top results for debugging
+        if results:
+            logger.debug(f"📺 Top TMDb TV results:")
+            for i, result in enumerate(results[:3]):
+                logger.debug(
+                    f"  {i + 1}. {result.get('name')} ({result.get('first_air_date', 'Unknown')}) - ID: {result.get('id')}"
+                )
+        else:
+            logger.warning(f"🚫 No TMDb TV results found for: '{title}' ({first_air_date_year})")
+
         return results
 
     def get_movie_details(self, tmdb_id: int) -> Dict[str, Any]:
@@ -110,6 +147,16 @@ class TMDbClient:
 
         if not results:
             logger.warning(f"❌ No TMDb results found for movie: '{title}' ({year})")
+            # Try alternative search without year
+            if year:
+                logger.info(f"🔄 Retrying movie search without year filter: '{title}'")
+                results = self.search_movie(title, None)
+                if results:
+                    result = results[0]
+                    logger.info(
+                        f"🎬 Using best match (no year): '{result.get('title')}' ({result.get('release_date')}) - ID: {result.get('id')}"
+                    )
+                    return result
             return None
 
         # If we have a Year, prefer exact year matches
@@ -133,6 +180,38 @@ class TMDbClient:
 
         if not results:
             logger.warning(f"❌ No TMDb results found for TV show: '{title}' ({year})")
+
+            # Try alternative search strategies
+            alternative_titles = [
+                title.replace(" US", ""),  # Remove region suffix
+                title.replace(" (US)", ""),
+                title.replace(" UK", ""),
+                title.replace(" (UK)", ""),
+                title.replace(" ", ""),  # Remove spaces
+            ]
+
+            for alt_title in alternative_titles:
+                if alt_title != title:
+                    logger.info(f"🔄 Trying alternative title: '{alt_title}'")
+                    results = self.search_tv_show(alt_title, year)
+                    if results:
+                        result = results[0]
+                        logger.info(
+                            f"📺 Found match with alternative title: '{result.get('name')}' ({result.get('first_air_date')}) - ID: {result.get('id')}"
+                        )
+                        return result
+
+            # Try without year filter
+            if year:
+                logger.info(f"🔄 Retrying TV search without year filter: '{title}'")
+                results = self.search_tv_show(title, None)
+                if results:
+                    result = results[0]
+                    logger.info(
+                        f"📺 Using best match (no year): '{result.get('name')}' ({result.get('first_air_date')}) - ID: {result.get('id')}"
+                    )
+                    return result
+
             return None
 
         # If we have a Year, prefer exact year matches

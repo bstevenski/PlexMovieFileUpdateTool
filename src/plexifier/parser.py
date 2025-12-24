@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple
 
-from constants import SEASON_EPISODE_REGEX, YEAR_REGEX, DATE_REGEXES, QUALITY_FORMATS_REGEX
+from .constants import SEASON_EPISODE_REGEX, YEAR_REGEX, DATE_REGEXES, QUALITY_FORMATS_REGEX
 
 
 ### Internal helper functions ###
@@ -83,7 +83,7 @@ def _guess_title_and_year_from_stem(stem: str) -> Tuple[str, Optional[int]]:
         # Otherwise pick the last 4-digit year token between 1900-2099
         year = _extract_year_from_stem(s)
         if year:
-            # Find the position of the year to split the title
+            # Find the position of year to split the title
             year_match = None
             for match in YEAR_REGEX.finditer(s):
                 if int(match.group(0)) == year:
@@ -92,8 +92,27 @@ def _guess_title_and_year_from_stem(stem: str) -> Tuple[str, Optional[int]]:
             if year_match:
                 title_part = s[: year_match.start()].strip()
 
+    # Remove season/episode patterns from title (for TV shows that fall through)
+    title_part = SEASON_EPISODE_REGEX.sub("", title_part)
+
     # Remove quality/format tags at the end
     title_part = QUALITY_FORMATS_REGEX.sub("", title_part)
+
+    # Remove common noisy patterns
+    noisy_patterns = [
+        r"\b(S\d{1,2}E\d{1,2})\b",  # Season/episode
+        r"\b(1080p|720p|480p|2160p|4k)\b",  # Resolution
+        r"\b(WEB[-\s]?DL|BluRay|DVDRip)\b",  # Source
+        r"\b(x264|x265|h\.264|h\.265)\b",  # Codec
+        r"\b(DDP?\d*\.?\d*|AAC|AC3)\b",  # Audio
+        r"\b(AMZN|NF|HBO|HULU)\b",  # Streaming services
+        r"\b(NTb|ELiTE)\b",  # Release groups
+        r"\[\w+\]",  # Bracketed tags
+    ]
+
+    for pattern in noisy_patterns:
+        title_part = re.sub(pattern, "", title_part, flags=re.IGNORECASE)
+
     title_part = re.sub(r"\s+", " ", title_part).strip(" -_()")
 
     # Convert to title case if all caps
@@ -152,8 +171,40 @@ def parse_media_file(filepath: Path) -> dict:
     season, episode = _parse_tv_filename(filename)
 
     if season is not None and episode is not None:
-        # TV Show
-        title, year = _guess_title_and_year_from_stem(stem)
+        # TV Show -优先使用父目录名作为标题
+        parent_dir = filepath.parent.name
+
+        # Clean up parent directory name (remove things like "(US)" etc.)
+        parent_title = re.sub(r"\s*\([^)]*\)", "", parent_dir).strip()
+        # Also clean up brackets and other patterns
+        parent_title = re.sub(r"\[.*?]", "", parent_title).strip()
+        # Clean up quality tags and release groups from parent directory
+        parent_title = QUALITY_FORMATS_REGEX.sub("", parent_title)
+        parent_title = re.sub(r"\.ELiTE.*", "", parent_title)
+        parent_title = re.sub(r"\.NTb.*", "", parent_title)
+        parent_title = re.sub(r"\.EZTV.*", "", parent_title)
+        parent_title = re.sub(r"\.x265.*", "", parent_title)
+        parent_title = re.sub(r"\.1080p.*", "", parent_title)
+        parent_title = parent_title.strip()
+
+        # Check if parent directory looks like a filename (contains quality tags, etc.)
+        parent_is_filename = (
+                SEASON_EPISODE_REGEX.search(parent_dir)
+                or QUALITY_FORMATS_REGEX.search(parent_dir)
+                or re.search(r"\[.*?]", parent_dir)  # Brackets
+                or ".to" in parent_dir  # Domain-like patterns
+                or re.search(r"\.(ELiTE|NTb|EZTV)", parent_dir)  # Release groups
+                or "S25." in parent_dir  # Season-specific pattern
+        )
+
+        # Use parent directory title unless it's clearly a filename pattern or generic
+        if parent_is_filename or parent_title.lower() in ["tv shows", "season", "episodes"]:
+            title, year = _guess_title_and_year_from_stem(stem)
+        else:
+            title = parent_title
+            # Try to extract year from filename since parent dir might not have it
+            _, year = _guess_title_and_year_from_stem(stem)
+
         episode_title = _extract_episode_title_from_filename(stem)
         date_str, date_year = _parse_date_in_filename(filename)
 
