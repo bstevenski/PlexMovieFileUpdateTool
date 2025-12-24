@@ -246,7 +246,9 @@ class Plexifier:
                 result = self.tmdb_client.find_best_tv_match(media_info["title"], media_info["year"])
 
             if result:
-                self.logger.debug(f"Found TMDb match: {result.get('title', 'Unknown')}")
+                # Use appropriate field name for movies vs TV shows
+                display_name = result.get("title") or result.get("name", "Unknown")
+                self.logger.debug(f"Found TMDb match: {display_name}")
                 return result
             else:
                 self.logger.warning(f"No TMDb match found for: {media_info['title']}")
