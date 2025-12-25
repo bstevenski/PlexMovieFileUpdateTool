@@ -171,38 +171,50 @@ def parse_media_file(filepath: Path) -> dict:
     season, episode = _parse_tv_filename(filename)
 
     if season is not None and episode is not None:
-        # TV Show -优先使用父目录名作为标题
+        # TV Show - prefer using parent directory name as title
         parent_dir = filepath.parent.name
+        
+        # Check if parent is a season folder - if so, use grandparent
+        parent_is_season = re.match(r"[Ss]eason\s*\d+", parent_dir) or parent_dir.lower().startswith("season ")
+        
+        if parent_is_season:
+            # Use grandparent directory (the actual show folder)
+            grandparent_dir = filepath.parent.parent.name if filepath.parent.parent else parent_dir
+            show_dir = grandparent_dir
+        else:
+            show_dir = parent_dir
 
-        # Clean up parent directory name (remove things like "(US)" etc.)
-        parent_title = re.sub(r"\s*\([^)]*\)", "", parent_dir).strip()
+        # Clean up show directory name (remove things like "(US)" etc.)
+        show_title = re.sub(r"\s*\([^)]*\)", "", show_dir).strip()
         # Also clean up brackets and other patterns
-        parent_title = re.sub(r"\[.*?]", "", parent_title).strip()
-        # Clean up quality tags and release groups from parent directory
-        parent_title = QUALITY_FORMATS_REGEX.sub("", parent_title)
-        parent_title = re.sub(r"\.ELiTE.*", "", parent_title)
-        parent_title = re.sub(r"\.NTb.*", "", parent_title)
-        parent_title = re.sub(r"\.EZTV.*", "", parent_title)
-        parent_title = re.sub(r"\.x265.*", "", parent_title)
-        parent_title = re.sub(r"\.1080p.*", "", parent_title)
-        parent_title = parent_title.strip()
+        show_title = re.sub(r"\[.*?]", "", show_title).strip()
+        # Remove IDs in curly braces (IMDB, TMDB, etc.)
+        show_title = re.sub(r"\s*\{[a-z0-9\-:]+\}", "", show_title).strip()
+        # Clean up quality tags and release groups from show directory
+        show_title = QUALITY_FORMATS_REGEX.sub("", show_title)
+        show_title = re.sub(r"\.ELiTE.*", "", show_title)
+        show_title = re.sub(r"\.NTb.*", "", show_title)
+        show_title = re.sub(r"\.EZTV.*", "", show_title)
+        show_title = re.sub(r"\.x265.*", "", show_title)
+        show_title = re.sub(r"\.1080p.*", "", show_title)
+        show_title = show_title.strip()
 
-        # Check if parent directory looks like a filename (contains quality tags, etc.)
-        parent_is_filename = (
-                SEASON_EPISODE_REGEX.search(parent_dir)
-                or QUALITY_FORMATS_REGEX.search(parent_dir)
-                or re.search(r"\[.*?]", parent_dir)  # Brackets
-                or ".to" in parent_dir  # Domain-like patterns
-                or re.search(r"\.(ELiTE|NTb|EZTV)", parent_dir)  # Release groups
-                or "S25." in parent_dir  # Season-specific pattern
+        # Check if show directory looks like a filename (contains quality tags, etc.)
+        show_dir_is_filename = (
+                SEASON_EPISODE_REGEX.search(show_dir)
+                or QUALITY_FORMATS_REGEX.search(show_dir)
+                or re.search(r"\[.*?]", show_dir)  # Brackets
+                or ".to" in show_dir  # Domain-like patterns
+                or re.search(r"\.(ELiTE|NTb|EZTV)", show_dir)  # Release groups
+                or "S25." in show_dir  # Season-specific pattern
         )
 
-        # Use parent directory title unless it's clearly a filename pattern or generic
-        if parent_is_filename or parent_title.lower() in ["tv shows", "season", "episodes"]:
+        # Use show directory title unless it's clearly a filename pattern or generic
+        if show_dir_is_filename or show_title.lower() in ["tv shows", "season", "episodes"]:
             title, year = _guess_title_and_year_from_stem(stem)
         else:
-            title = parent_title
-            # Try to extract year from filename since parent dir might not have it
+            title = show_title
+            # Try to extract year from filename since show dir might not have it
             _, year = _guess_title_and_year_from_stem(stem)
 
         episode_title = _extract_episode_title_from_filename(stem)

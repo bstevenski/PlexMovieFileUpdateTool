@@ -15,7 +15,7 @@ import signal
 import sys
 from pathlib import Path
 
-from plexifier.constants import (
+from .constants import (
     COMPLETED_FOLDER,
     CONTENT_TYPE_MOVIES,
     CONTENT_TYPE_TV,
@@ -26,20 +26,20 @@ from plexifier.constants import (
     WORKERS,
     LOG_DIR,
 )
-from plexifier.file_manager import (
+from .file_manager import (
     create_error_directory,
     ensure_directory_exists,
     safe_move_with_backup,
     scan_media_files,
 )
-from plexifier.formatter import (
+from .formatter import (
     construct_movie_path,
     construct_tv_show_path,
 )
-from plexifier.logger import setup_logging
-from plexifier.parser import parse_media_file
-from plexifier.tmdb_client import TMDbClient, TMDbError
-from plexifier.transcoder import (
+from .logger import setup_logging
+from .parser import parse_media_file
+from .tmdb_client import TMDbClient, TMDbError
+from .transcoder import (
     VideoInfo,
     cleanup_transcoding_artifacts,
     needs_transcoding,
@@ -92,7 +92,10 @@ class Plexifier:
         # Set up signal handlers for graceful shutdown
         self.running = True
         signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        try:
+            signal.signal(signal.SIGTERM, self._signal_handler)
+        except (AttributeError, OSError):
+            pass
 
         self.logger.info("Plexifier initialized", dry_run=dry_run, workers=workers)
 
@@ -139,7 +142,7 @@ class Plexifier:
             raise
         finally:
             self.logger.info(
-                f"🏁 Media processing completed - "
+                f"Media processing completed - "
                 f"Total: {total_files_processed}, "
                 f"Successful: {total_files_successful}, "
                 f"Failed: {total_files_failed}"
@@ -210,7 +213,7 @@ class Plexifier:
                 return self._handle_error(filepath, "TMDb lookup failed")
 
             # Step 3: Format new filename and path
-            new_path = self._format_new_path(media_info, tmdb_data, self.use_episode_titles)
+            new_path = self._format_new_path(media_info, tmdb_data, self.use_episode_titles, filepath)
             self.logger.debug(f"New path: {new_path}")
 
             # Step 4: Move to staging area
@@ -253,12 +256,11 @@ class Plexifier:
             self.logger.error(f"TMDb lookup failed: {e}")
             return None
 
-    @staticmethod
-    def _format_new_path(media_info: dict, tmdb_data: dict, use_episode_titles: bool = False) -> Path:
+    def _format_new_path(self, media_info: dict, tmdb_data: dict, use_episode_titles: bool, filepath: Path) -> Path:
         """Format the new path according to Plex conventions."""
         staged_dir = Path(STAGED_FOLDER) / media_info["content_type"]
         tmdb_id = tmdb_data["id"]
-        extension = media_info.get("extension", ".mkv")
+        extension = filepath.suffix
 
         if media_info["content_type"] == CONTENT_TYPE_MOVIES:
             new_path = construct_movie_path(

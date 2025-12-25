@@ -216,7 +216,6 @@ def _transcode_with_ffmpeg_cli(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            universal_newlines=True,
         )
 
         # Monitor progress
