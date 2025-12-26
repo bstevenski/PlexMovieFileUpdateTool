@@ -65,7 +65,8 @@ addopts = "-v --cov=plexifier --cov-report=term-missing"
 
 [tool.hatch.envs.default.scripts]
 standard-run = "PYTHONPATH=src python -m plexifier.plexifier"
-debug-run = "PYTHONPATH=src python -m plexifier.plexifier --dry-run --log-level DEBUG"
+foreground-run = "PYTHONPATH=src python -m plexifier.plexifier --foreground"
+debug-run = "PYTHONPATH=src python -m plexifier.plexifier --foreground --dry-run --log-level DEBUG"
 ps = """
      pgrep -fl plexifier || echo 'No plexifier processes found';
      pgrep -fl ffmpeg || echo 'No ffmpeg processes found'
@@ -95,7 +96,8 @@ clean-logs = """
 clean-all = ['clean-python', 'clean-logs']
 help = """
         echo 'Available commands:'; echo
-        echo '   hatch run standard-run'; echo '      - Run plexifier in standard mode'; echo
+        echo '   hatch run standard-run'; echo '      - Run plexifier in background daemon mode (default)'; echo
+        echo '   hatch run foreground-run'; echo '      - Run plexifier in foreground mode'; echo
         echo '   hatch run debug-run'; echo '      - Run plexifier in debug/dry-run mode'; echo
         echo '   hatch run ps'; echo '      - List running plexifier and ffmpeg processes'; echo
         echo '   hatch run trail-log'; echo '      - Tail of latest log file'; echo

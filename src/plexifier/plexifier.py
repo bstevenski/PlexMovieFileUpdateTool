@@ -57,12 +57,12 @@ class Plexifier:
     """Main orchestrator for the media processing pipeline."""
 
     def __init__(
-            self,
-            dry_run: bool = False,
-            log_level: str = DEFAULT_LOG_LEVEL,
-            workers: int = WORKERS,
-            skip_transcoding: bool = False,
-            use_episode_titles: bool = False,
+        self,
+        dry_run: bool = False,
+        log_level: str = DEFAULT_LOG_LEVEL,
+        workers: int = WORKERS,
+        skip_transcoding: bool = False,
+        use_episode_titles: bool = False,
     ):
         """
         Initialize the Plexifier.
@@ -628,10 +628,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
  Examples:
-  %(prog)s                                    # Process from default queue directory using 4 workers
+  %(prog)s                                    # Run in background daemon mode with 4 workers
   %(prog)s /path/to/media                    # Process from custom directory
+  %(prog)s --foreground                       # Run in foreground (non-daemon) mode
   %(prog)s --workers 8                       # Use 8 parallel workers for transcoding
-  %(prog)s --daemon                          # Run in background daemon mode
   %(prog)s --dry-run                         # Preview changes without modifications
   %(prog)s --skip-transcoding                 # Skip video transcoding
   %(prog)s --log-level DEBUG                 # Enable debug logging
@@ -678,9 +678,9 @@ def main():
     )
 
     parser.add_argument(
-        "--daemon",
+        "--foreground",
         action="store_true",
-        help="Run in daemon mode (background continuous processing)",
+        help="Run in foreground mode (default is background daemon mode)",
     )
 
     args = parser.parse_args()
@@ -695,7 +695,9 @@ def main():
     )
 
     try:
-        plexifier.run_parallel(args.source_dir, getattr(args, "daemon", False))
+        # Default to daemon mode unless explicitly foreground
+        daemon_mode = not getattr(args, "foreground", False)
+        plexifier.run_parallel(args.source_dir, daemon_mode)
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit(1)
