@@ -30,12 +30,12 @@ def _format_movie_filename(title: str, year: int, tmdb_id: int, extension: str) 
 
 
 def _format_episode_filename(
-    series_title: str,
-    season: int,
-    episode: int,
-    episode_title: Optional[str],
-    extension: str,
-    use_episode_title_only: bool = False,
+        series_title: str,
+        season: int,
+        episode: int,
+        episode_title: Optional[str],
+        extension: str,
+        use_episode_title_only: bool = False,
 ) -> str:
     """
     Format a TV show episode filename according to Plex conventions.
@@ -98,11 +98,11 @@ def _format_season_folder_name(season: int) -> str:
 
 ### Public functions ###
 def construct_movie_path(
-    base_dir: Path,
-    title: str,
-    year: int,
-    tmdb_id: int,
-    extension: str,
+        base_dir: Path,
+        title: str,
+        year: int,
+        tmdb_id: int,
+        extension: str,
 ) -> Path:
     """Construct the full path for a movie file."""
     filename = _format_movie_filename(title, year, tmdb_id, extension)
@@ -110,21 +110,16 @@ def construct_movie_path(
 
 
 def construct_tv_show_path(
-    base_dir: Path,
-    title: str,
-    year: Optional[int],
-    tmdb_id: int,
-    season: int,
-    episode: int,
-    episode_title: Optional[str],
-    extension: str,
-    use_episode_title_only: bool = False,
+        base_dir: Path,
+        title: str,
+        year: Optional[int],
+        tmdb_id: int,
+        season: int,
+        episode: int,
+        episode_title: Optional[str],
+        extension: str,
+        use_episode_title_only: bool = False,
 ) -> Path:
-    """Construct the full path for a TV show episode file.
-
-    Args:
-        use_episode_title_only: If True, use episode title instead of S##E## numbers
-    """
     # Create show folder
     show_folder_name = _format_tv_show_folder_name(title, year, tmdb_id)
     show_folder = base_dir / show_folder_name

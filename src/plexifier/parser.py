@@ -107,7 +107,9 @@ def _guess_title_and_year_from_stem(stem: str) -> Tuple[str, Optional[int]]:
         r"\b(DDP?\d*\.?\d*|AAC|AC3)\b",  # Audio
         r"\b(AMZN|NF|HBO|HULU)\b",  # Streaming services
         r"\b(NTb|ELiTE)\b",  # Release groups
-        r"\[\w+\]",  # Bracketed tags
+        r"\[[^\]]+\]",  # Square bracketed tags
+        r"\{[^}]+\}",  # Curly bracketed tags
+        r"\[.*?\]",  # Generic bracketed content
     ]
 
     for pattern in noisy_patterns:
@@ -173,10 +175,10 @@ def parse_media_file(filepath: Path) -> dict:
     if season is not None and episode is not None:
         # TV Show - prefer using parent directory name as title
         parent_dir = filepath.parent.name
-        
+
         # Check if parent is a season folder - if so, use grandparent
         parent_is_season = re.match(r"[Ss]eason\s*\d+", parent_dir) or parent_dir.lower().startswith("season ")
-        
+
         if parent_is_season:
             # Use grandparent directory (the actual show folder)
             grandparent_dir = filepath.parent.parent.name if filepath.parent.parent else parent_dir
@@ -189,7 +191,7 @@ def parse_media_file(filepath: Path) -> dict:
         # Also clean up brackets and other patterns
         show_title = re.sub(r"\[.*?]", "", show_title).strip()
         # Remove IDs in curly braces (IMDB, TMDB, etc.)
-        show_title = re.sub(r"\s*\{[a-z0-9\-:]+\}", "", show_title).strip()
+        show_title = re.sub(r"\s*\{[a-z0-9\-:]+}", "", show_title).strip()
         # Clean up quality tags and release groups from show directory
         show_title = QUALITY_FORMATS_REGEX.sub("", show_title)
         show_title = re.sub(r"\.ELiTE.*", "", show_title)

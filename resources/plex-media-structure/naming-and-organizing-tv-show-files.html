@@ -30,11 +30,13 @@
     <link crossorigin href="https://fonts.gstatic.com" rel="preconnect dns-prefetch">
 
     <!-- optionally increase loading priority -->
-    <link as="style" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&#038;display=optional"
+    <link as="style"
+          href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&#038;display=optional"
           rel="preload">
 
     <!-- async CSS -->
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&#038;display=optional" media="print" onload="this.onload=null;this.removeAttribute('media');"
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&#038;display=optional"
+          media="print" onload="this.onload=null;this.removeAttribute('media');"
           rel="stylesheet">
 
     <!-- no-JS fallback -->
@@ -187,10 +189,12 @@
 
     <link href="https://support.plex.tv/feed/" rel="alternate" title="Plex Support &raquo; Feed"
           type="application/rss+xml"/>
-    <link href='https://support.plex.tv/wp-content/themes/plex/dist/css/app.min.css?ver=4.0.0-1765989330' id='plex-app-css'
+    <link href='https://support.plex.tv/wp-content/themes/plex/dist/css/app.min.css?ver=4.0.0-1765989330'
+          id='plex-app-css'
           media='all'
           rel='stylesheet' type='text/css'/>
-    <link href='https://support.plex.tv/wp-content/themes/plex/dist/css/conditional/support.min.css?ver=4.0.0-1765989330' id='support-styles-css'
+    <link href='https://support.plex.tv/wp-content/themes/plex/dist/css/conditional/support.min.css?ver=4.0.0-1765989330'
+          id='support-styles-css'
           media='all'
           rel='stylesheet' type='text/css'/>
     <script id="jquery-core-js"
@@ -201,18 +205,23 @@
           type="application/json"/>
     <link href="https://support.plex.tv/xmlrpc.php?rsd" rel="EditURI" title="RSD" type="application/rsd+xml"/>
     <link href='https://support.plex.tv/?p=45239' rel='shortlink'/>
-    <link href="https://support.plex.tv/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fsupport.plex.tv%2Farticles%2Fnaming-and-organizing-your-tv-show-files%2F" rel="alternate" title="oEmbed (JSON)"
+    <link href="https://support.plex.tv/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fsupport.plex.tv%2Farticles%2Fnaming-and-organizing-your-tv-show-files%2F"
+          rel="alternate" title="oEmbed (JSON)"
           type="application/json+oembed"/>
-    <link href="https://support.plex.tv/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fsupport.plex.tv%2Farticles%2Fnaming-and-organizing-your-tv-show-files%2F&#038;format=xml" rel="alternate" title="oEmbed (XML)"
+    <link href="https://support.plex.tv/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fsupport.plex.tv%2Farticles%2Fnaming-and-organizing-your-tv-show-files%2F&#038;format=xml"
+          rel="alternate" title="oEmbed (XML)"
           type="text/xml+oembed"/>
 
-    <link as="font" crossorigin="anonymous" href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/plexeina-regular-webfont.woff2"
+    <link as="font" crossorigin="anonymous"
+          href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/plexeina-regular-webfont.woff2"
           rel="preload"
           type="font/woff2">
-    <link as="font" crossorigin="anonymous" href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/plexeina-bold-webfont.woff2"
+    <link as="font" crossorigin="anonymous"
+          href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/plexeina-bold-webfont.woff2"
           rel="preload"
           type="font/woff2">
-    <link as="font" crossorigin="anonymous" href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/icomoon.woff2"
+    <link as="font" crossorigin="anonymous"
+          href="https://support.plex.tv/wp-content/themes/plex/assets/fonts/icomoon.woff2"
           rel="preload" type="font/woff2">
 
 </head>
@@ -222,7 +231,8 @@
 <!-- Google Tag Manager (noscript) -->
 <noscript>
     <iframe height="0"
-            src="https://www.googletagmanager.com/ns.html?id=GTM-KX9D26" style="display:none;visibility:hidden" width="0"></iframe>
+            src="https://www.googletagmanager.com/ns.html?id=GTM-KX9D26" style="display:none;visibility:hidden"
+            width="0"></iframe>
 </noscript>
 <!-- End Google Tag Manager (noscript) -->
 
@@ -245,7 +255,8 @@
                 </div>
             </script>
 
-            <div :class="{ legacyFlexGap : ! navBar.hasFlexGapSupport }" class="plex-global-nav plex-templating nav-menu"
+            <div :class="{ legacyFlexGap : ! navBar.hasFlexGapSupport }"
+                 class="plex-global-nav plex-templating nav-menu"
                  data-utm-section="menu-header" id="plex-global-nav" v-cloak>
                 <header :class="{ isSearchFocused : navBar.searchIsFocused }" class="plex-global-nav navbar">
 
@@ -263,7 +274,8 @@
 
                             </a>
                         </div>
-                        <div :ariaExpanded="navBar.searchIsFocused" aria-haspopup="listbox" aria-owns="universal-search-menu"
+                        <div :ariaExpanded="navBar.searchIsFocused" aria-haspopup="listbox"
+                             aria-owns="universal-search-menu"
                              class="searchContainer" id="universal-search-container" ref="navSearchContainer"
                              role="combobox">
                             <div :class="{ chroma_SearchInput_module_isScopeOpen : navBar.searchScopeIsOpened, 'keepFocused': navBar.searchQuery && navBar.searchResultsIsOpened }"
@@ -302,20 +314,24 @@
 				</span>
                                 </button>
                                 <input @click="navSearchFocus" @focus="navSearchFocus" @keyup="navDoSearch"
-                                       aria-autocomplete="list" aria-controls="universal-search-menu" aria-labelledby="universal-search-label"
+                                       aria-autocomplete="list" aria-controls="universal-search-menu"
+                                       aria-labelledby="universal-search-label"
                                        autocapitalize="off"
                                        autocomplete="off" autocorrect="off"
-                                       class="chroma_SearchInput_module_input chroma_shared_module_base universal-search-input" id="universal-search-input" placeholder="Find Movies & TV"
+                                       class="chroma_SearchInput_module_input chroma_shared_module_base universal-search-input"
+                                       id="universal-search-input" placeholder="Find Movies & TV"
                                        ref="navSearchInput" tabindex="0" v-model="navBar.searchQuery"
                                        value="">
-                                <div @click="navClearSearch" class="chroma_Flex_module_flex chroma_Flex_module_horizontal chroma_Flex_module_shrink"
+                                <div @click="navClearSearch"
+                                     class="chroma_Flex_module_flex chroma_Flex_module_horizontal chroma_Flex_module_shrink"
                                      style="align-items:center;height:100%"
                                      v-show="navBar.searchQuery">
                                     <button aria-label="close and clear search results"
                                             class="close-search-results chroma_SearchInput_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_SearchInput_module_clearButton"
                                             ref="closeSearchResults" tabindex="0" type="button">
                                         <svg aria-hidden="true" class="chroma_Icon_none chroma_Icon_inheritColor"
-                                             fill="currentColor" height="48" style="width: auto; height: max(1em, 1rem);" viewBox="0 0 48 48"
+                                             fill="currentColor" height="48"
+                                             style="width: auto; height: max(1em, 1rem);" viewBox="0 0 48 48"
                                              width="48"
                                              xmlns="http://www.w3.org/2000/svg">
                                             <path d="M8.46448 37.4355L10.5645 39.5355L24 26.0999L37.4356 39.5355L39.5356 37.4355L26.1 23.9999L39.5356 10.5644L37.4356 8.46439L24 21.8999L10.5645 8.46438L8.46448 10.5644L21.9 23.9999L8.46448 37.4355Z"
@@ -350,7 +366,8 @@
 								<span :class="{ Text_accent : navBar.searchScope === key }"
                                       class="search-menu-item chroma_Text_module_text chroma_Text_module_body2 chroma_shared_module_base chroma_Text_module_inheritColor">{{key}}</span>
 								<svg aria-hidden="true" class="Icon_accent" fill="currentColor"
-                                     height="48" style="width: auto; height: max(1em, 1rem);" v-if="navBar.searchScope === key" viewBox="0 0 48 48"
+                                     height="48" style="width: auto; height: max(1em, 1rem);"
+                                     v-if="navBar.searchScope === key" viewBox="0 0 48 48"
                                      width="48" xmlns="http://www.w3.org/2000/svg">
 									<path clip-rule="evenodd"
                                           d="M4 24.7518L18.6461 39.4008L44 14.0497L38.9502 9L18.6461 29.3069L9.04416 19.7076L4 24.7518Z"
@@ -366,9 +383,11 @@
                         </div>
                     </div>
 
-                    <div aria-labelledby="universal-search-label" class="plex-global-nav-search" id="universal-search-menu"
+                    <div aria-labelledby="universal-search-label" class="plex-global-nav-search"
+                         id="universal-search-menu"
                          ref="navSearchResultsContainer" role="listbox" v-show="navBar.searchResultsIsOpened">
-                        <div :style="navBar.searchResultsMenuStyle" class="chroma_Flyout_modules_popper" style="position: absolute; inset: 0px auto auto 0px"
+                        <div :style="navBar.searchResultsMenuStyle" class="chroma_Flyout_modules_popper"
+                             style="position: absolute; inset: 0px auto auto 0px"
                              tabindex="-1">
                             <div class="chroma_Flyout_modules_flyout chroma_shared_module_base"
                                  style="opacity: 1; transform: none;">
@@ -432,7 +451,8 @@
                                                     <img :alt="navSearchSanitizedItem( item, 'title' )"
                                                          :src="navSearchSanitizedItem( item, 'thumb' )"
                                                          data-nimg="true" decoding="async"
-                                                         sizes="30px" style="position: absolute; inset: 0px; box-sizing: border-box; padding: 0px; border: none; margin: auto; display: block; width: 0px; height: 0px; min-width: 100%; max-width: 100%; min-height: 100%; max-height: 100%; object-fit: cover;"
+                                                         sizes="30px"
+                                                         style="position: absolute; inset: 0px; box-sizing: border-box; padding: 0px; border: none; margin: auto; display: block; width: 0px; height: 0px; min-width: 100%; max-width: 100%; min-height: 100%; max-height: 100%; object-fit: cover;"
                                                          v-if="navSearchSanitizedItem( item, 'thumb' )">
                                                     <div class="no-cover" v-else>?</div>
                                                 </div>
@@ -444,7 +464,8 @@
                                                       class="chroma_Text_module_text chroma_Text_module_body2 chroma_shared_module_base chroma_Text_module_secondary chroma_Text_module_singleLine">{{navSearchItemTypeDesc( item )}}</span>
                                             </div>
                                         </div>
-                                        <div class="channel-is-playable" style="font-size: 0.75rem; background-color: #0000004d; padding: 0.25rem 0.5rem; font-weight: bolder; color: #fff;"
+                                        <div class="channel-is-playable"
+                                             style="font-size: 0.75rem; background-color: #0000004d; padding: 0.25rem 0.5rem; font-weight: bolder; color: #fff;"
                                              v-if="navSearchItemIsPlayable( item )">
                                             <span title="Watch Free">Watch Free</span>
                                         </div>
@@ -1120,10 +1141,12 @@
                                                                                                 viewBox="0 0 32 32"
                                                                                                 width="32"
                                                                                                 xmlns="http://www.w3.org/2000/svg">
-<path clip-rule="evenodd" d="M20.6675 9.17321C20.7031 8.89961 20.5713 8.6319 20.3333 8.49448C20.0952 8.35703 19.7975 8.37679 19.5783 8.54438L12.7145 13.7958C12.6426 13.8509 12.58 13.9235 12.5346 14.002C12.4894 14.0805 12.46 14.1671 12.4483 14.2569L11.3323 22.8268C11.2968 23.1005 11.4285 23.3681 11.6666 23.5056C11.9046 23.643 12.2023 23.6233 12.4215 23.4557L19.2853 18.2043C19.3572 18.1492 19.4199 18.0765 19.4651 17.9981C19.5104 17.9196 19.5398 17.8329 19.5515 17.7432L20.6675 9.17321ZM17.4433 16.8334C16.983 17.6305 15.9637 17.9036 15.1666 17.4434C14.3694 16.9832 14.0963 15.9638 14.5565 15.1667C15.0168 14.3695 16.0361 14.0964 16.8332 14.5566C17.6304 15.0169 17.9035 16.0362 17.4433 16.8334Z"
+<path clip-rule="evenodd"
+      d="M20.6675 9.17321C20.7031 8.89961 20.5713 8.6319 20.3333 8.49448C20.0952 8.35703 19.7975 8.37679 19.5783 8.54438L12.7145 13.7958C12.6426 13.8509 12.58 13.9235 12.5346 14.002C12.4894 14.0805 12.46 14.1671 12.4483 14.2569L11.3323 22.8268C11.2968 23.1005 11.4285 23.3681 11.6666 23.5056C11.9046 23.643 12.2023 23.6233 12.4215 23.4557L19.2853 18.2043C19.3572 18.1492 19.4199 18.0765 19.4651 17.9981C19.5104 17.9196 19.5398 17.8329 19.5515 17.7432L20.6675 9.17321ZM17.4433 16.8334C16.983 17.6305 15.9637 17.9036 15.1666 17.4434C14.3694 16.9832 14.0963 15.9638 14.5565 15.1667C15.0168 14.3695 16.0361 14.0964 16.8332 14.5566C17.6304 15.0169 17.9035 16.0362 17.4433 16.8334Z"
       fill="#E5A00D"
       fill-rule="evenodd"/>
-<path clip-rule="evenodd" d="M30 16C30 23.732 23.732 30 16 30C8.26801 30 2 23.732 2 16C2 8.26801 8.26801 2 16 2C23.732 2 30 8.26801 30 16ZM28 16C28 22.6274 22.6274 28 16 28C9.37258 28 4 22.6274 4 16C4 9.37258 9.37258 4 16 4C22.6274 4 28 9.37258 28 16Z"
+<path clip-rule="evenodd"
+      d="M30 16C30 23.732 23.732 30 16 30C8.26801 30 2 23.732 2 16C2 8.26801 8.26801 2 16 2C23.732 2 30 8.26801 30 16ZM28 16C28 22.6274 22.6274 28 16 28C9.37258 28 4 22.6274 4 16C4 9.37258 9.37258 4 16 4C22.6274 4 28 9.37258 28 16Z"
       fill="#E5A00D"
       fill-rule="evenodd"/>
 </svg>
@@ -1827,7 +1850,8 @@
                                                                                                 id="photos-c"
                                                                                                 version="1.1"
                                                                                                 viewBox="0 0 48 48"
-                                                                                                width="35" xmlns="http://www.w3.org/2000/svg">
+                                                                                                width="35"
+                                                                                                xmlns="http://www.w3.org/2000/svg">
 	<path d="M24,35c-1.8,0-3.5-.5-5-1.5-1.5-1-2.6-2.4-3.3-4-.7-1.6-.9-3.5-.5-5.2.3-1.7,1.2-3.3,2.5-4.6,1.3-1.3,2.9-2.1,4.6-2.5,1.7-.3,3.6-.2,5.2.5,1.6.7,3.1,1.8,4,3.3,1,1.5,1.5,3.2,1.5,5s-.9,4.7-2.6,6.4c-1.7,1.7-4,2.6-6.4,2.6ZM22.6,23.1c-1.1-1.6-2-3-2-3h0c0,0,4.2,0,4.2,0l2,3c1.1,1.6,2,3,2,3,0,0-4,5.9-4,5.9,0,0,0,0-2.1,0h-2.1s1.7-2.5,1.7-2.5c.9-1.3,1.7-2.6,2-2.9l.4-.6-2-2.9Z"
           style="fill: #e5a00d;fill-rule: evenodd;"/>
 	<path d="M28.8,7h-9.6c-.9,0-1.7.3-2.5.8-.7.5-1.3,1.3-1.5,2.1l-1.1,3.5h-6.9c-1.1,0-2.2.4-3,1.2-.8.8-1.2,1.9-1.2,3v19.1c0,1.1.4,2.2,1.2,3,.8.8,1.9,1.2,3,1.2h33.6c1.1,0,2.2-.4,3-1.2.8-.8,1.2-1.9,1.2-3v-19.1c0-1.1-.4-2.2-1.2-3-.8-.8-1.9-1.2-3-1.2h-6.9l-1.1-3.5c-.3-.8-.8-1.6-1.5-2.1-.7-.5-1.6-.8-2.5-.8ZM41.6,16.7c-.2-.2-.5-.4-.8-.4h-9.1l-1.8-5.5c0-.3-.2-.5-.4-.6-.2-.1-.4-.2-.7-.2h-9.6c-.2,0-.5,0-.7.2-.2.1-.4.4-.4.6l-1.8,5.5H7.2c-.3,0-.6.1-.8.4-.2.2-.4.6-.4.9v19.1c0,.3.1.7.4.9.2.2.5.4.8.4h33.6c.3,0,.6-.1.8-.4.2-.2.4-.6.4-.9h0v-19.1h0c0-.3-.1-.7-.4-.9Z"
@@ -1929,7 +1953,9 @@
 
                                 <template v-if="isSignedIn">
 
-                                    <a :href="webURL" class="chroma_Button_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_Button_module_accent chroma_Button_module_xs" rel="nofollow"
+                                    <a :href="webURL"
+                                       class="chroma_Button_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_Button_module_accent chroma_Button_module_xs"
+                                       rel="nofollow"
                                        role="link"
                                        tabindex="0" target="_blank">
                                         <span class="chroma_Text_module_text chroma_Text_module_body1 chroma_shared_module_base chroma_Text_module_inheritColor chroma_Text_module_singleLine Text_menu_label"
@@ -1972,7 +1998,8 @@
 		</span>
                                         </button>
                                         <div :style="navBar.userMenuStyle" class="chroma_Flyout_modules_popper"
-                                             ref="navUserPopper" style="position: absolute; inset: 0px auto auto 0px; max-height: 488px; width: 216px;"
+                                             ref="navUserPopper"
+                                             style="position: absolute; inset: 0px auto auto 0px; max-height: 488px; width: 216px;"
                                              tabindex="-1">
                                             <div class="chroma_Flyout_modules_flyout chroma_shared_module_base"
                                                  style="opacity: 1; transform: none;"
@@ -2011,7 +2038,8 @@
                                                         <template v-if="hasAdminPermissions">
                                                             <hr class="Menu_divider">
 
-                                                            <a :href="adminURL" class="chroma_Menu_module_menuButton chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base"
+                                                            <a :href="adminURL"
+                                                               class="chroma_Menu_module_menuButton chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base"
                                                                rel="nofollow"
                                                                role="menuitem" tabindex="-1" target="_blank">
                                                                 <span class="user-menu-item chroma_Text_module_text chroma_Text_module_body2 chroma_shared_module_base chroma_Text_module_inheritColor">Admin</span>
@@ -2076,13 +2104,15 @@
                         <span hidden=""></span>
                         <div aria-label="Navigation"
                              aria-modal="true"
-                             class="chroma_Modal_module_modal chroma_Modal_module_s chroma_Modal_module_modal" ref="navMobileModal" role="dialog" style="opacity: 1; transform: none;"
+                             class="chroma_Modal_module_modal chroma_Modal_module_s chroma_Modal_module_modal"
+                             ref="navMobileModal" role="dialog" style="opacity: 1; transform: none;"
                              tabindex="-1">
                             <div class="chroma_Modal_module_modalContent">
                                 <div class="chroma_Modal_module_closeButton">
                                     <button @click="navToggleMobile"
                                             aria-label="Close Navigation"
-                                            class="nav-close-mobile chroma_Button_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_Button_module_transparent chroma_Button_module_m chroma_Button_module_noShrink" type="button">
+                                            class="nav-close-mobile chroma_Button_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_Button_module_transparent chroma_Button_module_m chroma_Button_module_noShrink"
+                                            type="button">
 					<span class="chroma_Flex_module_flex chroma_Flex_module_horizontal chroma_Flex_module_shrink chroma_Flex_module_nativeGap chroma_Flex_module_xs"
                           style="align-items: center;">
 						<svg aria-hidden="true" class="chroma_Icon_none chroma_Icon_inheritColor" fill="currentColor"
@@ -2122,7 +2152,8 @@
 
 			<li class="chroma_Flex_module_flex chroma_Flex_module_vertical chroma_Flex_module_shrink"
                 v-for="(item, key) in menu.items">
-				<a :href="item.href" class="chroma_Link_module_link chroma_UnstyledLink_module_unstyledLink chroma_shared_module_base chroma_Link_module_default"
+				<a :href="item.href"
+                   class="chroma_Link_module_link chroma_UnstyledLink_module_unstyledLink chroma_shared_module_base chroma_Link_module_default"
                    rel="nofollow"
                    target="_blank">
 					<span class="nav-menu-item-label gtm-menu-item mobile-menu-item chroma_Text_module_text chroma_Text_module_inherit chroma_shared_module_base chroma_Text_module_inheritColor">
@@ -2133,7 +2164,8 @@
 
 			<li class="chroma_Flex_module_flex chroma_Flex_module_vertical chroma_Flex_module_shrink"
                 v-if="hasAdminPermissions">
-				<a :href="adminURL" class="chroma_Link_module_link chroma_UnstyledLink_module_unstyledLink chroma_shared_module_base chroma_Link_module_default"
+				<a :href="adminURL"
+                   class="chroma_Link_module_link chroma_UnstyledLink_module_unstyledLink chroma_shared_module_base chroma_Link_module_default"
                    rel="nofollow"
                    role="menuitem" tabindex="-1" target="_blank">
 					<span class="nav-menu-item-label gtm-menu-item mobile-menu-item chroma_Text_module_text chroma_Text_module_inherit chroma_shared_module_base chroma_Text_module_inheritColor">Admin</span>
@@ -2149,7 +2181,8 @@
 	<button class="nav-signout chroma_Button_module_button chroma_UnstyledButton_module_unstyledButton chroma_shared_module_base chroma_Button_module_default chroma_Button_module_m"
             type="button">
 		<span @click="navSignOut"
-              class="action-menu-item nav-menu-item-label gtm-menu-item chroma_Text_module_text chroma_Text_module_label1 chroma_shared_module_base chroma_Text_module_inheritColor chroma_Text_module_singleLine" title="Sign Out">Sign Out</span>
+              class="action-menu-item nav-menu-item-label gtm-menu-item chroma_Text_module_text chroma_Text_module_label1 chroma_shared_module_base chroma_Text_module_inheritColor chroma_Text_module_singleLine"
+              title="Sign Out">Sign Out</span>
 	</button>
 </div>
 						</template>
@@ -2590,8 +2623,9 @@
 
                                 <h1>Naming and Organizing Your TV Show Files</h1>
 
-                                <article class="post-45239 support_articles type-support_articles status-publish hentry support_article_category-naming-and-organizing-tv-shows support_article_category-your-media"
-                                         id="post-45239">
+                                <article
+                                        class="post-45239 support_articles type-support_articles status-publish hentry support_article_category-naming-and-organizing-tv-shows support_article_category-your-media"
+                                        id="post-45239">
 
 
                                     <div class="dynamic-blocks-container">
@@ -2674,7 +2708,8 @@
                                             </li>
                                             <li>As an alternative, you can also use a <a
                                                     class="no-inline-links"
-                                                    href="https://support.plex.tv/articles/plexmatch/">.plexmatch file</a></li>
+                                                    href="https://support.plex.tv/articles/plexmatch/">.plexmatch
+                                                file</a></li>
                                         </ul>
                                         <h2>Episode Ordering</h2>
                                         <p>Some shows can have episodes in different orders, depending on where they
@@ -2710,7 +2745,8 @@
                                             release and so <code>TheTVDB (US)</code> is chosen as the order.</p>
                                         <p><img alt="" class="alignnone size-full wp-image-47477"
                                                 decoding="async"
-                                                sizes="(max-width: 707px) 100vw, 707px" src="https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3.png"
+                                                sizes="(max-width: 707px) 100vw, 707px"
+                                                src="https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3.png"
                                                 srcset="https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3.png 707w, https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3-300x217.png 300w, https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3-640x463.png 640w, https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3-400x290.png 400w, https://support.plex.tv/wp-content/uploads/sites/4/2019/05/Plex-3-150x109.png 150w"
                                                 width="707"/></p>
                                         <p>Shows will most commonly have one or more of these options for episode
@@ -2768,15 +2804,18 @@
                                             particular episode is a Special or not, check the episode on <a
                                                     href="https://www.themoviedb.org/" title="TheTVDB Website">TMDB</a> and
                                             name it as you see it there.</p>
-                                        <p>If an special you have doesn’t appear in <a href="https://www.themoviedb.org/"
-                                                                                       title="TheTVDB Website">TMDB</a>
+                                        <p>If an special you have doesn’t appear in <a
+                                                href="https://www.themoviedb.org/"
+                                                title="TheTVDB Website">TMDB</a>
                                             (e.g. it&#8217;s a DVD special, behind the scenes, goof reel, etc.), you can
                                             instead add the item as an &#8220;extra&#8221; for the show. See our <a
                                                     class="no-inline-links"
-                                                    href="https://support.plex.tv/articles/local-files-for-tv-show-trailers-and-extras/">article about TV extras</a>.</p>
+                                                    href="https://support.plex.tv/articles/local-files-for-tv-show-trailers-and-extras/">article
+                                                about TV extras</a>.</p>
                                         <p><strong>Related Page</strong>: <a
                                                 class="no-inline-links"
-                                                href="https://support.plex.tv/articles/local-files-for-tv-show-trailers-and-extras/">Local Files for TV Show Trailers and Extras</a>
+                                                href="https://support.plex.tv/articles/local-files-for-tv-show-trailers-and-extras/">Local
+                                            Files for TV Show Trailers and Extras</a>
                                         </p>
                                         <h2>Multiple Episodes in a Single File</h2>
                                         <p>If a single file covers more than one episode, name it using the following
@@ -2897,17 +2936,20 @@
 
 
                                                     <ul>
-                                                        <li class="share-x"><a href="https://twitter.com/share?url=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&text=Naming and Organizing Your TV Show Files&via=plex"
-                                                                               onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=465,width=540');return false;"
-                                                                               rel="nofollow noreferrer noopener"><i
+                                                        <li class="share-x"><a
+                                                                href="https://twitter.com/share?url=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&text=Naming and Organizing Your TV Show Files&via=plex"
+                                                                onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=465,width=540');return false;"
+                                                                rel="nofollow noreferrer noopener"><i
                                                                 class="icomoon icon-share-x"></i></a></li>
-                                                        <li class="share-facebook"><a href="https://www.facebook.com/share.php?u=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&title=Naming and Organizing Your TV Show Files"
-                                                                                      onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=590,width=540');return false;"
-                                                                                      rel="nofollow noreferrer noopener"><i
+                                                        <li class="share-facebook"><a
+                                                                href="https://www.facebook.com/share.php?u=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&title=Naming and Organizing Your TV Show Files"
+                                                                onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=590,width=540');return false;"
+                                                                rel="nofollow noreferrer noopener"><i
                                                                 class="icomoon icon-share-facebook"></i></a></li>
-                                                        <li class="share-linkedin"><a href="https://www.linkedin.com/shareArticle?url=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&title=Naming and Organizing Your TV Show Files"
-                                                                                      onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=535,width=550');return false;"
-                                                                                      rel="nofollow noreferrer noopener"><i
+                                                        <li class="share-linkedin"><a
+                                                                href="https://www.linkedin.com/shareArticle?url=https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/&title=Naming and Organizing Your TV Show Files"
+                                                                onclick="window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=535,width=550');return false;"
+                                                                rel="nofollow noreferrer noopener"><i
                                                                 class="icomoon icon-share-linkedin"></i></a></li>
                                                     </ul>
                                                 </div>
@@ -3699,17 +3741,19 @@
                                     class=" tiktok" data-pulldown="item-social-tiktok"
                                     href="https://www.tiktok.com/@plex.tv" rel="nofollow noreferrer noopener"
                                     target="_blank"><i aria-label="TikTok"
-                                                                          class="icomoon icon-social-tiktok"></i></a></li>
+                                                       class="icomoon icon-social-tiktok"></i></a></li>
                             <li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-67"
                                 id="menu-item-67"><a
-                                    data-pulldown="item-social-x" href="https://twitter.com/plex" rel="nofollow noreferrer noopener"
+                                    data-pulldown="item-social-x" href="https://twitter.com/plex"
+                                    rel="nofollow noreferrer noopener"
                                     target="_blank"><i aria-label="Twitter X"
-                                                                     class="icomoon icon-social-x"></i></a></li>
+                                                       class="icomoon icon-social-x"></i></a></li>
                             <li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-22570"
                                 id="menu-item-22570"><a
                                     class=" bluesky" href="https://bsky.app/profile/plex.tv"
-                                    rel="nofollow noreferrer noopener"><span alt="BlueSky" aria-label="BlueSky" class="nav-icon"
-                                                           title="BlueSky"><div
+                                    rel="nofollow noreferrer noopener"><span alt="BlueSky" aria-label="BlueSky"
+                                                                             class="nav-icon"
+                                                                             title="BlueSky"><div
                                     class="plex-svg-holder icon-bsky-logo-gray "><svg
                                     class="plexico-icon-bsky-logo-gray-1" fill="none" height="57" id="bsky-logo-gray"
                                     viewBox="0 0 64 57" width="64" xmlns="http://www.w3.org/2000/svg">
@@ -3731,10 +3775,11 @@
                                     aria-label="BlueSky" class="icomoon icon-social-facebook"></i></a></li>
                             <li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-64"
                                 id="menu-item-64"><a
-                                    data-pulldown="item-social-linkedin" href="https://www.linkedin.com/company/plex-inc"
+                                    data-pulldown="item-social-linkedin"
+                                    href="https://www.linkedin.com/company/plex-inc"
                                     rel="nofollow noreferrer noopener"
                                     target="_blank"><i aria-label="LinkedIn"
-                                                                            class="icomoon icon-social-linkedin"></i></a></li>
+                                                       class="icomoon icon-social-linkedin"></i></a></li>
                             <li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-63"
                                 id="menu-item-63"><a
                                     data-pulldown="item-social-youtube" href="https://www.youtube.com/user/plextvapp"

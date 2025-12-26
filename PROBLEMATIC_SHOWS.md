@@ -1,13 +1,18 @@
 # Handling TV Shows with Wrong Episode Numbers
 
 ## Problem
-You have TV shows where the episode titles are correct but the season/episode numbers in the filenames are wrong. The current plexifier sends these files to the `Errors` folder during processing.
+
+You have TV shows where the episode titles are correct but the season/episode numbers in the filenames are wrong. The
+current plexifier sends these files to the `Errors` folder during processing.
 
 ## Solution
+
 Process these problematic shows **separately** after your main run:
 
 ### Step 1: Run Main Pipeline
+
 Process all your normally-behaving shows:
+
 ```bash
 hatch run standard-run
 # Or for testing:
@@ -17,13 +22,16 @@ hatch run debug-run
 This will send problematic shows to `Errors/TV Shows/` while successfully processing the rest.
 
 ### Step 2: Fix and Re-process Problematic Shows
+
 1. **Manually fix the episode numbers** in the filenames in `Errors/TV Shows/`
 2. **Re-run only on the errors folder**:
+
 ```bash
 python3 src/plexifier/plexifier.py ../Errors --dry-run --log-level DEBUG
 ```
 
 ### Example Workflow
+
 ```bash
 # Step 1: Process everything
 hatch run debug-run
@@ -48,11 +56,13 @@ python3 src/plexifier/plexifier.py ../Errors
 ## File Naming Guidelines
 
 When fixing episode numbers manually, follow this format:
+
 ```
 Show Name - S##E## - Episode Title.extension
 ```
 
 Examples:
+
 - ✅ `Law and Order SVU - S25E13 - Children of Shadow.mkv`
 - ✅ `Office - S01E01 - Pilot.mkv`
 - ❌ `Law and Order SVU - Episode Title.mkv` (missing S##E##)

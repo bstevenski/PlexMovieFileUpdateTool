@@ -11,8 +11,11 @@ This script orchestrates the entire media processing workflow including:
 """
 
 import argparse
+import concurrent.futures
+import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 from .constants import (
@@ -41,7 +44,9 @@ from .parser import parse_media_file
 from .tmdb_client import TMDbClient, TMDbError
 from .transcoder import (
     VideoInfo,
+    cleanup_all_processes,
     cleanup_transcoding_artifacts,
+    get_transcode_output_path,
     needs_transcoding,
     transcode_video,
     validate_transcoded_file,
@@ -52,12 +57,12 @@ class Plexifier:
     """Main orchestrator for the media processing pipeline."""
 
     def __init__(
-        self,
-        dry_run: bool = False,
-        log_level: str = DEFAULT_LOG_LEVEL,
-        workers: int = WORKERS,
-        skip_transcoding: bool = False,
-        use_episode_titles: bool = False,
+            self,
+            dry_run: bool = False,
+            log_level: str = DEFAULT_LOG_LEVEL,
+            workers: int = WORKERS,
+            skip_transcoding: bool = False,
+            use_episode_titles: bool = False,
     ):
         """
         Initialize the Plexifier.
@@ -103,6 +108,9 @@ class Plexifier:
         """Handle shutdown signals gracefully."""
         self.logger.info(f"Received signal {signum}, shutting down gracefully...")
         self.running = False
+
+        # Clean up all active subprocesses
+        cleanup_all_processes()
 
     def run(self, source_dir: str | None = None) -> None:
         """Run the main processing pipeline."""
@@ -161,6 +169,229 @@ class Plexifier:
         for directory in directories:
             ensure_directory_exists(directory)
             self.logger.debug(f"Ensured directory exists: {directory}")
+
+    def run_parallel(self, source_dir: str | None = None, daemon_mode: bool = False) -> None:
+        """Run the parallel processing pipeline with workers."""
+        if source_dir:
+            queue_dir = Path(source_dir).resolve()
+        else:
+            queue_dir = Path(QUEUE_FOLDER).resolve()
+
+        self.logger.info(f"Starting parallel media processing from: {queue_dir}")
+        self.logger.info(f"Using {self.workers} worker threads")
+
+        # Ensure all required directories exist
+        self._setup_directories()
+
+        if daemon_mode:
+            self._run_daemon_mode(queue_dir)
+        else:
+            self._run_batch_mode(queue_dir)
+
+    def _run_daemon_mode(self, queue_dir: Path) -> None:
+        """Run in daemon mode, continuously monitoring for new files."""
+        self.logger.info("Starting daemon mode - monitoring for new files...")
+
+        # Make process a daemon
+        if os.fork() > 0:
+            return  # Parent exits
+
+        os.setsid()
+        if os.fork() > 0:
+            return  # Second fork
+
+        # Close stdin/stdout/stderr
+        sys.stdin.close()
+        sys.stdout.close()
+        sys.stderr.close()
+
+        while self.running:
+            try:
+                # Process current files
+                self._run_batch_mode(queue_dir)
+
+                # Wait before next check
+                time.sleep(30)  # Check every 30 seconds
+
+            except KeyboardInterrupt:
+                self.logger.info("Daemon interrupted by user")
+                break
+            except Exception as e:
+                self.logger.error(f"Daemon error: {e}")
+                time.sleep(60)  # Wait longer on error
+
+    def _run_batch_mode(self, queue_dir: Path) -> None:
+        """Run batch processing: rename first, then transcode in parallel."""
+        # Phase 1: Rename and move all files to staging
+        self.logger.info("Phase 1: Renaming and organizing files...")
+        staged_files = self._batch_rename_and_stage(queue_dir)
+
+        if not staged_files:
+            self.logger.info("No files to process")
+            return
+
+        self.logger.info(f"Staged {len(staged_files)} files for transcoding")
+
+        # Phase 2: Transcode in parallel using workers
+        if not self.skip_transcoding:
+            self.logger.info(f"Phase 2: Transcoding with {self.workers} workers...")
+            self._parallel_transcode(staged_files)
+
+        # Phase 3: Move completed files to final destination
+        self.logger.info("Phase 3: Moving completed files...")
+        self._move_completed_files(staged_files)
+
+        self.logger.info("Batch processing completed")
+
+    def _batch_rename_and_stage(self, queue_dir: Path) -> list[dict]:
+        """Phase 1: Rename and move all files to staging area."""
+        staged_files = []
+
+        for content_type in [CONTENT_TYPE_MOVIES, CONTENT_TYPE_TV]:
+            content_queue_dir = queue_dir / content_type
+
+            if not content_queue_dir.exists():
+                continue
+
+            self.logger.info(f"Processing {content_type} from: {content_queue_dir}")
+
+            for filepath in scan_media_files(content_queue_dir):
+                if not self.running:
+                    break
+
+                try:
+                    staged_info = self._stage_file(filepath, content_type)
+                    if staged_info:
+                        staged_files.append(staged_info)
+
+                except Exception as e:
+                    self.logger.error(f"Failed to stage file {filepath}: {e}")
+                    self._handle_error(filepath, str(e))
+
+        return staged_files
+
+    def _stage_file(self, filepath: Path, content_type: str) -> dict | None:
+        """Stage a single file (rename and move to staging area)."""
+        try:
+            # Step 1: Parse filename
+            media_info = parse_media_file(filepath)
+
+            # Step 2: Lookup TMDb metadata
+            tmdb_data = self._lookup_tmdb_metadata(media_info)
+            if not tmdb_data:
+                return None
+
+            # Step 3: Format new filename and path
+            new_path = self._format_new_path(media_info, tmdb_data, self.use_episode_titles, filepath)
+
+            # Step 4: Move to staging area
+            if not self._move_to_staging(filepath, new_path):
+                return None
+
+            # Check if transcoding is needed (catch errors to avoid breaking staging)
+            try:
+                needs_trans = not self.skip_transcoding and needs_transcoding(VideoInfo(new_path))
+            except Exception as e:
+                self.logger.warning(f"Could not determine transcoding need for {new_path}: {e}")
+                needs_trans = False
+
+            return {
+                "original_path": filepath,
+                "staged_path": new_path,
+                "content_type": content_type,
+                "media_info": media_info,
+                "tmdb_data": tmdb_data,
+                "needs_transcoding": needs_trans,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Failed to stage file {filepath}: {e}")
+            return None
+
+    def _parallel_transcode(self, staged_files: list[dict]) -> None:
+        """Phase 2: Transcode files in parallel using workers."""
+        # Filter files that need transcoding
+        files_to_transcode = [f for f in staged_files if f["needs_transcoding"]]
+
+        if not files_to_transcode:
+            self.logger.info("No files need transcoding")
+            return
+
+        self.logger.info(f"Transcoding {len(files_to_transcode)} files with {self.workers} workers")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            # Submit all transcoding jobs
+            future_to_file = {
+                executor.submit(self._transcode_staged_file, file_info): file_info for file_info in files_to_transcode
+            }
+
+            # Process completed jobs
+            completed = 0
+            for future in concurrent.futures.as_completed(future_to_file):
+                file_info = future_to_file[future]
+                completed += 1
+
+                try:
+                    transcoded_path = future.result()
+                    if transcoded_path:
+                        file_info["transcoded_path"] = transcoded_path
+                        self.logger.info(
+                            f"[{completed}/{len(files_to_transcode)}] Transcoded: {file_info['staged_path'].name}"
+                        )
+                    else:
+                        self.logger.error(
+                            f"[{completed}/{len(files_to_transcode)}] Failed to transcode: {file_info['staged_path'].name}"
+                        )
+
+                except Exception as e:
+                    self.logger.error(f"Transcoding error for {file_info['staged_path'].name}: {e}")
+
+    def _transcode_staged_file(self, file_info: dict) -> Path | None:
+        """Transcode a single staged file."""
+        staged_path = file_info["staged_path"]
+
+        try:
+            # Determine output path
+            output_path = get_transcode_output_path(staged_path)
+
+            # Transcode
+            success = transcode_video(staged_path, output_path)
+
+            if success and validate_transcoded_file(staged_path, output_path):
+                # Clean up original transcoded file
+                cleanup_transcoding_artifacts(staged_path)
+                return output_path
+            else:
+                # Remove failed transcoding attempt
+                if output_path.exists():
+                    output_path.unlink()
+                return None
+
+        except Exception as e:
+            self.logger.error(f"Transcoding failed for {staged_path}: {e}")
+            return None
+
+    def _move_completed_files(self, staged_files: list[dict]) -> None:
+        """Phase 3: Move all completed files to final destination."""
+        for file_info in staged_files:
+            try:
+                # Determine final path (either original staged or transcoded)
+                final_path = file_info.get("transcoded_path", file_info["staged_path"])
+                content_type = file_info["content_type"]
+
+                # Check if the file still exists (it may have been cleaned up if transcoding failed)
+                if not final_path.exists():
+                    self.logger.warning(f"File not found, skipping: {final_path}")
+                    continue
+
+                # Move to completed area
+                if self._move_to_completed(final_path, content_type):
+                    self.logger.info(f"Completed: {final_path.name}")
+                else:
+                    self.logger.error(f"Failed to move completed file: {final_path.name}")
+
+            except Exception as e:
+                self.logger.error(f"Error moving completed file {file_info.get('staged_path', 'unknown')}: {e}")
 
     def _process_content_type(self, queue_dir: Path, content_type: str) -> tuple[int, int, int]:
         """Process all files of a specific content type."""
@@ -258,7 +489,8 @@ class Plexifier:
             self.logger.error(f"TMDb lookup failed: {e}")
             return None
 
-    def _format_new_path(self, media_info: dict, tmdb_data: dict, use_episode_titles: bool, filepath: Path) -> Path:
+    @staticmethod
+    def _format_new_path(media_info: dict, tmdb_data: dict, use_episode_titles: bool, filepath: Path) -> Path:
         """Format the new path according to Plex conventions."""
         staged_dir = Path(STAGED_FOLDER) / media_info["content_type"]
         tmdb_id = tmdb_data["id"]
@@ -339,7 +571,32 @@ class Plexifier:
             return True
 
         completed_dir = Path(COMPLETED_FOLDER) / content_type
-        relative_path = filepath.relative_to(Path(STAGED_FOLDER) / content_type)
+
+        # Handle both staged files and transcoded files
+        try:
+            # Try to get relative path from staged folder
+            staged_base = Path(STAGED_FOLDER) / content_type
+            relative_path = filepath.relative_to(staged_base)
+        except ValueError:
+            # File might be transcoded and not in the expected staged structure
+            # Extract the show/season info from the path or create a fallback structure
+            if content_type == CONTENT_TYPE_TV:
+                # For TV shows, try to extract show and season from path
+                path_parts = filepath.parts
+                show_name = "Unknown Show"
+                season = "Season 01"
+
+                for part in path_parts:
+                    if part.endswith(f" {{tmdb-"):
+                        show_name = part
+                    elif part.startswith("Season "):
+                        season = part
+
+                relative_path = Path(show_name) / season / filepath.name
+            else:
+                # For movies, just use the filename
+                relative_path = Path(filepath.name)
+
         destination_path = completed_dir / relative_path
 
         error_dir = create_error_directory(Path(ERROR_FOLDER), "completion_errors")
@@ -371,8 +628,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
  Examples:
-  %(prog)s                                    # Process from default queue directory
+  %(prog)s                                    # Process from default queue directory using 4 workers
   %(prog)s /path/to/media                    # Process from custom directory
+  %(prog)s --workers 8                       # Use 8 parallel workers for transcoding
+  %(prog)s --daemon                          # Run in background daemon mode
   %(prog)s --dry-run                         # Preview changes without modifications
   %(prog)s --skip-transcoding                 # Skip video transcoding
   %(prog)s --log-level DEBUG                 # Enable debug logging
@@ -415,7 +674,13 @@ def main():
         "--workers",
         type=int,
         default=WORKERS,
-        help=f"Number of worker processes (default: {WORKERS})",
+        help=f"Number of worker processes for transcoding (default: {WORKERS})",
+    )
+
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="Run in daemon mode (background continuous processing)",
     )
 
     args = parser.parse_args()
@@ -430,7 +695,7 @@ def main():
     )
 
     try:
-        plexifier.run(args.source_dir)
+        plexifier.run_parallel(args.source_dir, getattr(args, "daemon", False))
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit(1)

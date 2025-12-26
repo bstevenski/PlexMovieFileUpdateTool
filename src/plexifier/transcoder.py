@@ -5,17 +5,53 @@ This module provides functions for transcoding video files to formats
 compatible with Plex and various devices, especially Apple TVs.
 """
 
+import atexit
 import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 import ffmpeg
 
 from .constants import TRANSCODE_SETTINGS
 
 logger = logging.getLogger(__name__)
+
+# Global set to track all active subprocesses
+_active_processes: Set[subprocess.Popen] = set()
+
+
+def _register_process(process: subprocess.Popen) -> None:
+    """Register a process for tracking and cleanup."""
+    _active_processes.add(process)
+
+
+def _unregister_process(process: subprocess.Popen) -> None:
+    """Unregister a process from tracking."""
+    _active_processes.discard(process)
+
+
+def cleanup_all_processes() -> None:
+    """Terminate all tracked subprocesses."""
+    logger.info(f"Cleaning up {_active_processes.__len__()} active processes...")
+    for process in list(_active_processes):
+        try:
+            if process.poll() is None:  # Process is still running
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Process didn't terminate, killing...")
+                    process.kill()
+                    process.wait()
+        except Exception as e:
+            logger.error(f"Error cleaning up process: {e}")
+    _active_processes.clear()
+
+
+# Register cleanup function for atexit
+atexit.register(cleanup_all_processes)
 
 
 class TranscodingError(Exception):
@@ -82,7 +118,7 @@ class VideoInfo:
         cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", str(self.filepath)]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode != 0:
                 raise TranscodingError(f"ffprobe failed: {result.stderr}")
 
@@ -218,6 +254,9 @@ def _transcode_with_ffmpeg_cli(
             text=True,
         )
 
+        # Register process for cleanup
+        _register_process(process)
+
         # Monitor progress
         if process.stdout:
             for line in process.stdout:
@@ -244,10 +283,25 @@ def _transcode_with_ffmpeg_cli(
         logger.error("Transcoding timed out")
         if process:
             process.kill()
+            process.wait()
+        return False
+    except KeyboardInterrupt:
+        logger.info("Transcoding interrupted by user")
+        if process:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
         return False
     except Exception as e:
         logger.error(f"Transcoding error: {e}")
         return False
+    finally:
+        # Unregister process from tracking
+        if process:
+            _unregister_process(process)
 
 
 def validate_transcoded_file(original_path: Path, transcoded_path: Path) -> bool:
